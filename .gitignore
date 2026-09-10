@@ -1,0 +1,8 @@
+.DS_Store
+.AppleDouble
+.LSOverride
+
+MacPet/.build/
+MacPet/.swiftpm/
+MacPet/MacPet.app/
+MacPet/.DS_Store
