@@ -22,6 +22,8 @@
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>个人非商业使用。默认形象：Bilibili 初风y不行</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 </dict>
