@@ -1,13 +1,13 @@
 import AppKit
 import MacPetCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 final class PetWindowController: NSWindowController, NSWindowDelegate {
     private let runtime: PetRuntime
     private let display = PetDisplay()
     private var hostingView: ClearHostingView<PetView>
-    private var pollTask: Task<Void, Never>?
     private var motionTimer: Timer?
     private(set) var isResizing = false
     private(set) var isEditingGlints = false
@@ -84,7 +84,7 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         keepVisibleOverSpaces()
         window?.orderFrontRegardless()
         isWindowOccluded = false
-        startPolling()
+        runtime.refreshFocus()
         updateMotionClock()
     }
 
@@ -99,7 +99,6 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         persistNow()
         runtime.hideWindow()
         window?.orderOut(nil)
-        stopPolling()
         updateMotionClock()
     }
 
@@ -108,7 +107,7 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         keepVisibleOverSpaces()
         window?.makeKeyAndOrderFront(nil)
         isWindowOccluded = false
-        startPolling()
+        runtime.refreshFocus()
         updateMotionClock()
     }
 
@@ -129,6 +128,7 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
     }
 
     var currentPetSize: CGFloat { runtime.petSize }
+    var displayedPetState: PetState { runtime.petState }
 
     func applyPetSize(_ size: CGFloat) {
         let footprint = petFootprint()
@@ -145,14 +145,14 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         feedItem.isEnabled = runtime.foodCount > 0 && runtime.petState != .eat
 
         let pomodoroItem = menu.addItem(
-            withTitle: "模拟完成一个番茄",
-            action: #selector(completeMockPomodoro),
+            withTitle: "完成一个番茄",
+            action: #selector(completePomodoro),
             keyEquivalent: ""
         )
         pomodoroItem.target = self
 
-        let focusTitle = runtime.isMockFocusing ? "停止模拟专注" : "开始模拟专注"
-        let focusItem = menu.addItem(withTitle: focusTitle, action: #selector(toggleMockFocus), keyEquivalent: "")
+        let focusTitle = runtime.isFocusing ? "停止专注" : "开始专注"
+        let focusItem = menu.addItem(withTitle: focusTitle, action: #selector(toggleFocus), keyEquivalent: "")
         focusItem.target = self
 
         menu.addItem(.separator())
@@ -175,6 +175,12 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
             resetItem.target = self
         }
 
+        let replaceItem = menu.addItem(withTitle: "更换形象", action: #selector(replaceCharacter), keyEquivalent: "")
+        replaceItem.target = self
+        let restoreItem = menu.addItem(withTitle: "恢复默认形象", action: #selector(restoreDefaultCharacter), keyEquivalent: "")
+        restoreItem.target = self
+        restoreItem.isEnabled = PetAsset.hasCustomCharacter()
+
         let refreshItem = menu.addItem(withTitle: "刷新", action: #selector(refreshPet), keyEquivalent: "r")
         refreshItem.target = self
 
@@ -195,14 +201,14 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         refreshDisplay()
     }
 
-    @objc private func completeMockPomodoro() {
-        runtime.completeMockPomodoro()
-        Task { await runtime.syncFromAdapter() }
+    @objc private func completePomodoro() {
+        runtime.completePomodoro()
+        refreshDisplay()
     }
 
-    @objc private func toggleMockFocus() {
-        runtime.toggleMockFocus()
-        Task { await runtime.syncFromAdapter() }
+    @objc private func toggleFocus() {
+        runtime.toggleFocus()
+        refreshDisplay()
     }
 
     @objc private func toggleResizeMode() {
@@ -235,6 +241,41 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
 
     @objc private func resetGlints() {
         runtime.resetGlints()
+        motionTick()
+    }
+
+    @objc private func replaceCharacter() {
+        NSApp.activate(ignoringOtherApps: true)
+        let panel = NSOpenPanel()
+        panel.title = "更换形象"
+        panel.message = "选择一张透明背景的 PNG，会替换当前形象"
+        panel.prompt = "使用"
+        panel.allowedContentTypes = [.png]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard NSImage(contentsOf: url) != nil else { return }
+        do {
+            try PetCharacterStore.install(from: url, into: PetAsset.supportDirectory)
+        } catch {
+            return
+        }
+        applyLoadedCharacter()
+    }
+
+    @objc private func restoreDefaultCharacter() {
+        try? PetCharacterStore.removeCustom(in: PetAsset.supportDirectory)
+        applyLoadedCharacter()
+    }
+
+    private func applyLoadedCharacter() {
+        isEditingGlints = false
+        runtime.resetGlints()
+        PetAsset.reload()
+        if let content = window?.contentView {
+            window?.invalidateCursorRects(for: content)
+        }
         motionTick()
     }
 
@@ -349,106 +390,57 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         display.eatDuration = runtime.settings.eatAnimationDuration
     }
 
-    private func startPolling() {
-        pollTask?.cancel()
-        pollTask = Task { [weak self] in
-            while !Task.isCancelled {
-                await self?.runtime.syncFromAdapter()
-                try? await Task.sleep(for: .seconds(PetEnergy.adapterPollInterval))
-            }
-        }
-    }
-
-    private func stopPolling() {
-        pollTask?.cancel()
-        pollTask = nil
-    }
-
     private func observeEnergySignals() {
         let workspace = NSWorkspace.shared.notificationCenter
         let distributed = DistributedNotificationCenter.default()
 
+        observeEnergy(workspace, NSWorkspace.screensDidSleepNotification) {
+            $0.isDisplayAsleep = true
+            $0.updateMotionClock()
+        }
+        observeEnergy(workspace, NSWorkspace.screensDidWakeNotification) {
+            $0.isDisplayAsleep = false
+            $0.updateMotionClock()
+        }
+        observeEnergy(workspace, NSWorkspace.willSleepNotification) {
+            $0.isDisplayAsleep = true
+            $0.updateMotionClock()
+        }
+        observeEnergy(workspace, NSWorkspace.didWakeNotification) {
+            $0.isDisplayAsleep = false
+            $0.updateMotionClock()
+        }
+        observeEnergy(workspace, NSWorkspace.accessibilityDisplayOptionsDidChangeNotification) {
+            let next = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            guard next != $0.reduceMotion else { return }
+            $0.reduceMotion = next
+            $0.motionTick()
+        }
+        observeEnergy(NotificationCenter.default, NSWindow.didChangeOcclusionStateNotification, object: window) {
+            $0.isWindowOccluded = $0.window?.occlusionState.contains(.visible) != true
+            $0.updateMotionClock()
+        }
+        observeEnergy(distributed, NSNotification.Name("com.apple.screenIsLocked")) {
+            $0.isScreenLocked = true
+            $0.updateMotionClock()
+        }
+        observeEnergy(distributed, NSNotification.Name("com.apple.screenIsUnlocked")) {
+            $0.isScreenLocked = false
+            $0.updateMotionClock()
+        }
+    }
+
+    private func observeEnergy(
+        _ center: NotificationCenter,
+        _ name: Notification.Name,
+        object: Any? = nil,
+        _ body: @escaping @MainActor (PetWindowController) -> Void
+    ) {
         energyObservers.append(
-            workspace.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in
-                    self?.isDisplayAsleep = true
-                    self?.updateMotionClock()
-                }
-            }
-        )
-        energyObservers.append(
-            workspace.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in
-                    self?.isDisplayAsleep = false
-                    self?.updateMotionClock()
-                }
-            }
-        )
-        energyObservers.append(
-            workspace.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in
-                    self?.isDisplayAsleep = true
-                    self?.updateMotionClock()
-                }
-            }
-        )
-        energyObservers.append(
-            workspace.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in
-                    self?.isDisplayAsleep = false
-                    self?.updateMotionClock()
-                }
-            }
-        )
-        energyObservers.append(
-            workspace.addObserver(
-                forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor in
-                    guard let self else { return }
-                    let next = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-                    guard next != self.reduceMotion else { return }
-                    self.reduceMotion = next
-                    self.motionTick()
-                }
-            }
-        )
-        energyObservers.append(
-            NotificationCenter.default.addObserver(
-                forName: NSWindow.didChangeOcclusionStateNotification,
-                object: window,
-                queue: .main
-            ) { [weak self] _ in
+            center.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
                 Task { @MainActor in
                     guard let self else { return }
-                    self.isWindowOccluded = self.window?.occlusionState.contains(.visible) != true
-                    self.updateMotionClock()
-                }
-            }
-        )
-        energyObservers.append(
-            distributed.addObserver(
-                forName: NSNotification.Name("com.apple.screenIsLocked"),
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor in
-                    self?.isScreenLocked = true
-                    self?.updateMotionClock()
-                }
-            }
-        )
-        energyObservers.append(
-            distributed.addObserver(
-                forName: NSNotification.Name("com.apple.screenIsUnlocked"),
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor in
-                    self?.isScreenLocked = false
-                    self?.updateMotionClock()
+                    body(self)
                 }
             }
         )
@@ -665,15 +657,20 @@ final class PetContainerView: NSView {
     }
 
     private func isCharacterPixel(at point: NSPoint) -> Bool {
-        guard let cgImage = PetAsset.characterCGImage() else {
+        guard let cgImage = PetAsset.displayedCGImage(
+            state: controller?.displayedPetState ?? .rest,
+            isEditingGlints: controller?.isEditingGlints == true
+        ) else {
             return true
         }
 
         let padding: CGFloat = controller?.isResizing == true ? PetSizing.chromePadding : 0
         let petSize = controller?.currentPetSize ?? bounds.width
         let petBounds = NSRect(x: padding, y: padding, width: petSize, height: petSize)
-        let imageSize = NSSize(width: cgImage.width, height: cgImage.height)
-        let fitted = aspectFitRect(imageSize: imageSize, in: petBounds)
+        let fitted = PetMotion.aspectFit(
+            imageSize: CGSize(width: cgImage.width, height: cgImage.height),
+            in: petBounds
+        )
         guard fitted.contains(point) else { return false }
 
         let x = (point.x - fitted.minX) / fitted.width * CGFloat(cgImage.width)
@@ -691,18 +688,6 @@ final class PetContainerView: NSView {
         let offset = pixelY * cgImage.bytesPerRow + pixelX * bytesPerPixel
         guard bytesPerPixel >= 4 else { return true }
         return pointer[offset + 3] > 16
-    }
-
-    private func aspectFitRect(imageSize: NSSize, in bounds: NSRect) -> NSRect {
-        let scale = min(bounds.width / imageSize.width, bounds.height / imageSize.height)
-        let width = imageSize.width * scale
-        let height = imageSize.height * scale
-        return NSRect(
-            x: bounds.midX - width / 2,
-            y: bounds.midY - height / 2,
-            width: width,
-            height: height
-        )
     }
 }
 

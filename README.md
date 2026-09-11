@@ -31,4 +31,4 @@ cd MacPet
 | `ChatGPT Image Sep 10, 2026, 07_10_40 PM.png` | 角色原图 |
 | `MacPet/` | Swift 源码、角色透明 PNG、构建脚本 |
 
-当前 FocusPomo 为本地模拟适配器；右键可喂番茄、模拟番茄钟、调整大小与眼睛高光。
+当前专注由 MacPet 自己记录，不再接入 FocusPomo。右键可开始/停止专注、完成一个番茄、喂番茄、调整大小与眼睛高光。

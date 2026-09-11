@@ -54,13 +54,15 @@ struct PetView: View {
                 character()
                     .frame(width: size, height: size)
                     .overlay {
-                        GazeOverlay(
-                            size: size,
-                            look: isEditingGlints ? .zero : display.look,
-                            leftGlint: leftGlint,
-                            rightGlint: rightGlint,
-                            isEditing: isEditingGlints
-                        )
+                        if !usesStudyArt {
+                            GazeOverlay(
+                                size: size,
+                                look: isEditingGlints ? .zero : display.look,
+                                leftGlint: leftGlint,
+                                rightGlint: rightGlint,
+                                isEditing: isEditingGlints
+                            )
+                        }
                     }
             }
             .scaleEffect(x: pose.scaleX, y: pose.scaleY, anchor: .bottom)
@@ -74,7 +76,7 @@ struct PetView: View {
             )
             .offset(x: pose.offsetX, y: pose.offsetY)
 
-            if display.state == .study {
+            if display.state == .study, !usesStudyArt {
                 StudyPageOverlay(flip: reduceMotion ? 0 : PetMotion.studyPageFlip(elapsed: elapsed), size: size)
             }
 
@@ -165,9 +167,13 @@ struct PetView: View {
         }
     }
 
+    private var usesStudyArt: Bool {
+        PetAsset.usesStudyArt(state: display.state, isEditingGlints: isEditingGlints)
+    }
+
     @ViewBuilder
     private func character() -> some View {
-        if let image = PetAsset.characterImage() {
+        if let image = PetAsset.displayedImage(state: display.state, isEditingGlints: isEditingGlints) {
             Image(nsImage: image)
                 .resizable()
                 .interpolation(.high)
@@ -205,7 +211,10 @@ private struct GazeOverlay: View {
     var isEditing: Bool
 
     var body: some View {
-        let fitted = fittedRect
+        let fitted = PetMotion.aspectFit(
+            imageSize: PetAsset.characterPixelSize(),
+            in: CGSize(width: size, height: size)
+        )
         ZStack {
             glint(at: leftGlint, in: fitted)
             glint(at: rightGlint, in: fitted)
@@ -224,23 +233,12 @@ private struct GazeOverlay: View {
         .accessibilityHidden(true)
     }
 
-    private var fittedRect: CGRect {
-        PetMotion.aspectFit(
-            imageSize: PetAsset.characterPixelSize(),
-            in: CGSize(width: size, height: size)
-        )
-    }
-
     private func glint(at unit: CGPoint, in fitted: CGRect) -> some View {
         let socket = CGSize(
             width: fitted.width * PetMotion.eyeWidthFraction,
             height: fitted.height * PetMotion.eyeHeightFraction
         )
-        let center = PetMotion.glintCenter(
-            unit: unit,
-            imageSize: PetAsset.characterPixelSize(),
-            viewSize: size
-        )
+        let center = PetMotion.glintCenter(unit: unit, in: fitted, viewSize: size)
         let rest = CGSize(width: -socket.width * 0.14, height: socket.height * 0.12)
         let shift = CGSize(
             width: rest.width + look.eyeX * socket.width * 0.30,

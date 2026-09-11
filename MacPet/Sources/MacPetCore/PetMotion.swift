@@ -135,15 +135,26 @@ public enum PetMotion {
         )
     }
 
+    public static func aspectFit(imageSize: CGSize, in bounds: CGRect) -> CGRect {
+        aspectFit(imageSize: imageSize, in: bounds.size).offsetBy(dx: bounds.minX, dy: bounds.minY)
+    }
+
     public static func glintDrop(forViewSize viewSize: CGFloat) -> CGFloat {
         glintDropPoints * (viewSize / PetSizing.defaultSize)
     }
 
-    public static func glintCenter(unit: CGPoint, imageSize: CGSize, viewSize: CGFloat) -> CGPoint {
-        let fitted = aspectFit(imageSize: imageSize, in: CGSize(width: viewSize, height: viewSize))
-        return CGPoint(
+    public static func glintCenter(unit: CGPoint, in fitted: CGRect, viewSize: CGFloat) -> CGPoint {
+        CGPoint(
             x: fitted.minX + unit.x * fitted.width,
             y: fitted.minY + unit.y * fitted.height + glintDrop(forViewSize: viewSize)
+        )
+    }
+
+    public static func glintCenter(unit: CGPoint, imageSize: CGSize, viewSize: CGFloat) -> CGPoint {
+        glintCenter(
+            unit: unit,
+            in: aspectFit(imageSize: imageSize, in: CGSize(width: viewSize, height: viewSize)),
+            viewSize: viewSize
         )
     }
 

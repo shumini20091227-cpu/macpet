@@ -4,7 +4,7 @@ import Foundation
 public final class PetRuntime: @unchecked Sendable {
     public private(set) var petState: PetState
     public private(set) var foodCount: Int
-    public private(set) var isMockFocusing: Bool = false
+    public private(set) var isFocusing: Bool = false
     public private(set) var eatStartedAt: Date?
     public var onChange: (@Sendable () -> Void)?
 
@@ -35,8 +35,7 @@ public final class PetRuntime: @unchecked Sendable {
     }
 
     private let store: AppStore
-    private let adapter: FocusPomoAdapter
-    private let mock: MockFocusPomoAdapter?
+    private let focus: FocusClock
     private let browser: BrowserOpening
     private let now: @Sendable () -> Date
     private let sleep: @Sendable (TimeInterval) async -> Void
@@ -48,8 +47,7 @@ public final class PetRuntime: @unchecked Sendable {
 
     public init(
         store: AppStore,
-        adapter: FocusPomoAdapter,
-        mock: MockFocusPomoAdapter? = nil,
+        focus: FocusClock = FocusClock(),
         settings: AppSettings = AppSettings(),
         browser: BrowserOpening,
         calendar: Calendar = .current,
@@ -59,8 +57,7 @@ public final class PetRuntime: @unchecked Sendable {
         }
     ) {
         self.store = store
-        self.adapter = adapter
-        self.mock = mock
+        self.focus = focus
         self.settings = settings
         self.browser = browser
         self.calendar = calendar
@@ -73,43 +70,40 @@ public final class PetRuntime: @unchecked Sendable {
         self.foodCount = ledger.foodCount
     }
 
-    public func syncFromAdapter() async {
+    public func refreshFocus() {
         let previousFood = foodCount
         let previousState = petState
-        let previousFocusing = isMockFocusing
+        let previousFocusing = isFocusing
 
-        do {
-            let sessions = try await adapter.fetchSessions(since: .distantPast)
-            let next = engine.apply(sessions: sessions, ledger: ledger, now: now(), calendar: calendar)
-            if next != ledger {
-                ledger = next
-                store.save(ledger: ledger)
-                foodCount = ledger.foodCount
-            }
-        } catch {
-            // Keep the pet usable when FocusPomo data is unavailable.
+        let sessions = focus.sessions(since: .distantPast)
+        let next = engine.apply(sessions: sessions, ledger: ledger, now: now(), calendar: calendar)
+        if next != ledger {
+            ledger = next
+            store.save(ledger: ledger)
+            foodCount = ledger.foodCount
         }
 
-        let live = await adapter.currentSession()
-        isMockFocusing = live != nil
+        let live = focus.currentSession()
+        isFocusing = live != nil
         machine.setLiveSessionActive(live != nil)
         petState = machine.state
-        if foodCount != previousFood || petState != previousState || isMockFocusing != previousFocusing {
+        if foodCount != previousFood || petState != previousState || isFocusing != previousFocusing {
             notify()
         }
     }
 
-    public func completeMockPomodoro() {
-        mock?.completePomodoro(at: now())
+    public func completePomodoro() {
+        focus.completePomodoro(at: now())
+        refreshFocus()
     }
 
-    public func toggleMockFocus() {
-        guard let mock else { return }
-        if isMockFocusing {
-            mock.stopFocus(at: now())
+    public func toggleFocus() {
+        if isFocusing {
+            focus.stopFocus(at: now())
         } else {
-            mock.startFocus(at: now())
+            focus.startFocus(at: now())
         }
+        refreshFocus()
     }
 
     @discardableResult
@@ -155,7 +149,7 @@ public final class PetRuntime: @unchecked Sendable {
         machine.finishEating()
         petState = machine.state
         eatStartedAt = nil
-        if isMockFocusing {
+        if isFocusing {
             machine.setLiveSessionActive(true)
             petState = machine.state
         }

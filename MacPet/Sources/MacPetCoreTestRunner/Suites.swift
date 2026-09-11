@@ -197,27 +197,27 @@ enum PetGestureSuite {
     }
 }
 
-enum MockAdapterSuite {
+enum FocusClockSuite {
     static func completePomodoroCreatesTwentyFiveMinuteSession() async throws {
-        let adapter = MockFocusPomoAdapter()
+        let clock = FocusClock()
         let now = Date(timeIntervalSince1970: 1_700_000_000)
-        let session = adapter.completePomodoro(at: now)
+        let session = clock.completePomodoro(at: now)
         try expectEqual(session.durationMinutes, 25)
         try expectEqual(session.endedAt, now)
-        let fetched = try await adapter.fetchSessions(since: .distantPast)
+        let fetched = clock.sessions(since: .distantPast)
         try expectEqual(fetched.map(\.id), [session.id])
-        try expect(await adapter.currentSession() == nil)
+        try expect(clock.currentSession() == nil)
     }
 
     static func startAndStopFocusTracksLiveSession() async throws {
-        let adapter = MockFocusPomoAdapter()
+        let clock = FocusClock()
         let start = Date(timeIntervalSince1970: 1_700_000_000)
-        adapter.startFocus(at: start)
-        try expectEqual(await adapter.currentSession()?.startedAt, start)
+        clock.startFocus(at: start)
+        try expectEqual(clock.currentSession()?.startedAt, start)
         let end = start.addingTimeInterval(25 * 60)
-        adapter.stopFocus(at: end)
-        try expect(await adapter.currentSession() == nil)
-        let fetched = try await adapter.fetchSessions(since: .distantPast)
+        clock.stopFocus(at: end)
+        try expect(clock.currentSession() == nil)
+        let fetched = clock.sessions(since: .distantPast)
         try expectEqual(fetched.count, 1)
         try expectEqual(fetched[0].durationMinutes, 25)
     }
@@ -267,6 +267,50 @@ enum AppStoreSuite {
     }
 }
 
+enum PetCharacterStoreSuite {
+    private static func tempDirectory() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("MacPetCharacter.\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private static func writePNG(named name: String, in directory: URL, marker: String) throws -> URL {
+        let url = directory.appendingPathComponent(name)
+        try Data(marker.utf8).write(to: url)
+        return url
+    }
+
+    static func usesCustomImageWhenPresentOtherwiseBundled() async throws {
+        let directory = try tempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let bundled = try writePNG(named: "bundled.png", in: directory, marker: "bundled")
+        try expectEqual(
+            PetCharacterStore.resolvedImageURL(directory: directory, bundled: [bundled])?.lastPathComponent,
+            "bundled.png"
+        )
+
+        let first = try writePNG(named: "first.png", in: directory, marker: "first")
+        try PetCharacterStore.install(from: first, into: directory)
+        try expect(PetCharacterStore.hasCustomImage(in: directory))
+        let custom = PetCharacterStore.resolvedImageURL(directory: directory, bundled: [bundled])
+        try expectEqual(custom?.lastPathComponent, PetCharacterStore.fileName)
+        try expectEqual(String(data: try Data(contentsOf: custom!), encoding: .utf8), "first")
+
+        let second = try writePNG(named: "second.png", in: directory, marker: "second")
+        try PetCharacterStore.install(from: second, into: directory)
+        let files = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        try expectEqual(files.filter { $0 == PetCharacterStore.fileName }.count, 1)
+        try expectEqual(String(data: try Data(contentsOf: PetCharacterStore.customImageURL(in: directory)), encoding: .utf8), "second")
+
+        try PetCharacterStore.removeCustom(in: directory)
+        try expect(!PetCharacterStore.hasCustomImage(in: directory))
+        try expectEqual(
+            PetCharacterStore.resolvedImageURL(directory: directory, bundled: [bundled])?.lastPathComponent,
+            "bundled.png"
+        )
+    }
+}
+
 enum PetSizingSuite {
     static func clampsSizeToAllowedRange() async throws {
         try expectClose(Double(PetSizing.clamp(10)), Double(PetSizing.minSize))
@@ -311,35 +355,32 @@ enum PetRuntimeSuite {
     private static func makeRuntime(
         browser: RecordingBrowser = RecordingBrowser(),
         sleep: @escaping @Sendable (TimeInterval) async -> Void = { _ in }
-    ) -> (PetRuntime, MockFocusPomoAdapter, RecordingBrowser) {
+    ) -> (PetRuntime, FocusClock, RecordingBrowser) {
         let suite = "MacPetRuntimeTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
-        let adapter = MockFocusPomoAdapter()
+        let focus = FocusClock()
         let runtime = PetRuntime(
             store: AppStore(defaults: defaults),
-            adapter: adapter,
-            mock: adapter,
+            focus: focus,
             settings: AppSettings(),
             browser: browser,
             now: { Date(timeIntervalSince1970: 1_700_000_000) },
             sleep: sleep
         )
-        return (runtime, adapter, browser)
+        return (runtime, focus, browser)
     }
 
-    static func completingMockPomodoroAddsFood() async throws {
+    static func completingPomodoroAddsFood() async throws {
         let (runtime, _, _) = makeRuntime()
-        runtime.completeMockPomodoro()
-        await runtime.syncFromAdapter()
+        runtime.completePomodoro()
         try expectEqual(runtime.foodCount, 1)
         try expectEqual(runtime.petState, .rest)
     }
 
     static func feedingConsumesFoodAndPlaysEatThenRest() async throws {
         let (runtime, _, _) = makeRuntime()
-        runtime.completeMockPomodoro()
-        await runtime.syncFromAdapter()
+        runtime.completePomodoro()
         try expect(runtime.feed())
         try expectEqual(runtime.foodCount, 0)
         try expectEqual(runtime.petState, .eat)
@@ -354,10 +395,10 @@ enum PetRuntimeSuite {
     }
 
     static func liveFocusMovesPetToStudy() async throws {
-        let (runtime, adapter, _) = makeRuntime()
-        adapter.startFocus(at: Date(timeIntervalSince1970: 1_700_000_000))
-        await runtime.syncFromAdapter()
+        let (runtime, _, _) = makeRuntime()
+        runtime.toggleFocus()
         try expectEqual(runtime.petState, .study)
+        try expect(runtime.isFocusing)
     }
 
     static func leftClickOpensChatGPT() async throws {
@@ -370,22 +411,21 @@ enum PetRuntimeSuite {
     static func feedRecordsEatStartTime() async throws {
         let (runtime, _, _) = makeRuntime()
         try expect(runtime.eatStartedAt == nil)
-        runtime.completeMockPomodoro()
-        await runtime.syncFromAdapter()
+        runtime.completePomodoro()
         try expect(runtime.feed())
         try expect(runtime.eatStartedAt != nil)
         await runtime.waitForEatToFinish()
         try expect(runtime.eatStartedAt == nil)
     }
 
-    static func quietAdapterSyncDoesNotKeepNotifying() async throws {
+    static func quietFocusRefreshDoesNotKeepNotifying() async throws {
         let (runtime, _, _) = makeRuntime()
         let counter = NotifyCounter()
         runtime.onChange = { counter.increment() }
-        await runtime.syncFromAdapter()
+        runtime.refreshFocus()
         let afterFirst = counter.value
-        await runtime.syncFromAdapter()
-        await runtime.syncFromAdapter()
+        runtime.refreshFocus()
+        runtime.refreshFocus()
         try expectEqual(counter.value, afterFirst)
         try expect(afterFirst <= 1)
     }
@@ -517,6 +557,15 @@ enum PetMotionSuite {
         let fitted = PetMotion.aspectFit(imageSize: image, in: CGSize(width: PetSizing.defaultSize, height: PetSizing.defaultSize))
         let drop = atDefault.y - (fitted.minY + unit.y * fitted.height)
         try expectClose(Double(drop), Double(PetMotion.glintDropPoints), tolerance: 0.05)
+
+        let fromFitted = PetMotion.glintCenter(unit: unit, in: fitted, viewSize: PetSizing.defaultSize)
+        try expectClose(Double(fromFitted.x), Double(atDefault.x))
+        try expectClose(Double(fromFitted.y), Double(atDefault.y))
+
+        let boxed = CGRect(x: 10, y: 20, width: 200, height: 200)
+        let fittedInBox = PetMotion.aspectFit(imageSize: image, in: boxed)
+        try expectClose(Double(fittedInBox.minX), Double(boxed.minX + PetMotion.aspectFit(imageSize: image, in: boxed.size).minX))
+        try expectClose(Double(fittedInBox.minY), Double(boxed.minY + PetMotion.aspectFit(imageSize: image, in: boxed.size).minY))
     }
 
     static func glintUnitRoundTripsAndClamps() async throws {

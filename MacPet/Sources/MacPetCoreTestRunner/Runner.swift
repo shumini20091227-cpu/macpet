@@ -44,12 +44,12 @@ enum MacPetCoreTestRunner {
             ("zeroMovementIsClick", PetGestureSuite.zeroMovementIsClick),
             ("movementAtOrBelowThresholdIsClick", PetGestureSuite.movementAtOrBelowThresholdIsClick),
             ("movementBeyondThresholdIsDrag", PetGestureSuite.movementBeyondThresholdIsDrag),
-            ("completePomodoroCreatesTwentyFiveMinuteSession", MockAdapterSuite.completePomodoroCreatesTwentyFiveMinuteSession),
-            ("startAndStopFocusTracksLiveSession", MockAdapterSuite.startAndStopFocusTracksLiveSession),
+            ("completePomodoroCreatesTwentyFiveMinuteSession", FocusClockSuite.completePomodoroCreatesTwentyFiveMinuteSession),
+            ("startAndStopFocusTracksLiveSession", FocusClockSuite.startAndStopFocusTracksLiveSession),
             ("persistsFoodLedgerAndWindow", AppStoreSuite.persistsFoodLedgerAndWindow),
             ("defaultLedgerIsEmpty", AppStoreSuite.defaultLedgerIsEmpty),
             ("opensWebChatGPT", ChatGPTSuite.opensWebChatGPT),
-            ("completingMockPomodoroAddsFood", PetRuntimeSuite.completingMockPomodoroAddsFood),
+            ("completingPomodoroAddsFood", PetRuntimeSuite.completingPomodoroAddsFood),
             ("feedingConsumesFoodAndPlaysEatThenRest", PetRuntimeSuite.feedingConsumesFoodAndPlaysEatThenRest),
             ("feedFailsWithoutFood", PetRuntimeSuite.feedFailsWithoutFood),
             ("liveFocusMovesPetToStudy", PetRuntimeSuite.liveFocusMovesPetToStudy),
@@ -67,7 +67,8 @@ enum MacPetCoreTestRunner {
             ("glintUnitRoundTripsAndClamps", PetMotionSuite.glintUnitRoundTripsAndClamps),
             ("drivesFramesOnlyWhenSomeoneCanSeeThem", PetEnergySuite.drivesFramesOnlyWhenSomeoneCanSeeThem),
             ("skipsLookBlendOnceEyesHaveSettled", PetEnergySuite.skipsLookBlendOnceEyesHaveSettled),
-            ("quietAdapterSyncDoesNotKeepNotifying", PetRuntimeSuite.quietAdapterSyncDoesNotKeepNotifying)
+            ("quietFocusRefreshDoesNotKeepNotifying", PetRuntimeSuite.quietFocusRefreshDoesNotKeepNotifying),
+            ("usesCustomImageWhenPresentOtherwiseBundled", PetCharacterStoreSuite.usesCustomImageWhenPresentOtherwiseBundled)
         ]
 
         var failed = 0

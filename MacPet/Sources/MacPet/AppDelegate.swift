@@ -9,11 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
 
-        let mock = MockFocusPomoAdapter()
         runtime = PetRuntime(
             store: AppStore(defaults: .standard),
-            adapter: mock,
-            mock: mock,
             browser: WorkspaceBrowser()
         )
         petWindow = PetWindowController(runtime: runtime)
@@ -24,9 +21,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSLog("MacPet launched, hidden=%@", runtime.isWindowHidden ? "yes" : "no")
         installAppMenu()
-        Task {
-            await runtime.syncFromAdapter()
-        }
     }
 
     private func installAppMenu() {

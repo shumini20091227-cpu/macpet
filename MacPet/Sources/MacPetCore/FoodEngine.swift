@@ -19,7 +19,7 @@ public struct FoodLedger: Equatable, Sendable {
     }
 }
 
-public struct FoodEngine: Equatable, Sendable {
+public struct FoodEngine: Sendable {
     public var settings: AppSettings
 
     public init(settings: AppSettings = AppSettings()) {

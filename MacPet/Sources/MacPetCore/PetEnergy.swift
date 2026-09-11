@@ -4,7 +4,6 @@ import Foundation
 public enum PetEnergy {
     public static let motionFrameInterval: TimeInterval = 1.0 / 30.0
     public static let motionTimerTolerance: TimeInterval = 1.0 / 60.0
-    public static let adapterPollInterval: TimeInterval = 4
     public static let lookSettledEpsilon: CGFloat = 0.0005
     public static let mouseStillThreshold: CGFloat = 0.5
 
