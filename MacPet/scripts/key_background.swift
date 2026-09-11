@@ -35,11 +35,14 @@ guard let context = CGContext(
 
 context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
 
-func isBackground(_ offset: Int) -> Bool {
-    let r = pixels[offset]
-    let g = pixels[offset + 1]
-    let b = pixels[offset + 2]
-    return r < 18 && g < 18 && b < 18
+func isEmptyCanvas(_ offset: Int) -> Bool {
+    let r = Int(pixels[offset])
+    let g = Int(pixels[offset + 1])
+    let b = Int(pixels[offset + 2])
+    let a = Int(pixels[offset + 3])
+    if a < 16 { return true }
+    // Dark shoes, hair, and outlines stay. Only punch the empty canvas.
+    return a < 40 && r < 5 && g < 5 && b < 5 && (r + g + b) < 8
 }
 
 var visited = [Bool](repeating: false, count: width * height)
@@ -51,7 +54,7 @@ func enqueue(_ x: Int, _ y: Int) {
     if visited[index] { return }
     visited[index] = true
     let offset = index * bytesPerPixel
-    if isBackground(offset) {
+    if isEmptyCanvas(offset) {
         queue.append(index)
     }
 }
