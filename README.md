@@ -28,8 +28,7 @@ cd MacPet
 | 路径 | 说明 |
 |---|---|
 | `MacBook_桌面宠物开发文档_v1.0.md` | 产品与技术规格 |
-| `ChatGPT Image Sep 10, 2026, 07_10_40 PM.png` | 角色原图 |
-| `MacPet/` | Swift 源码、角色透明 PNG、构建脚本 |
+| `MacPet/` | Swift 源码、默认立绘、构建脚本 |
 
 当前专注由 MacPet 自己记录。右键可开始/停止专注、完成一个番茄、喂番茄、调整大小与眼睛高光。
 
@@ -37,4 +36,4 @@ cd MacPet
 
 本项目仅供**个人、非商业使用**，禁止商用。详见 [LICENSE](LICENSE)。
 
-默认宠物形象来自哔哩哔哩短片 UP 主 [初风y不行](https://space.bilibili.com/651923923/)，权利归原作者，使用时须保留署名。
+默认宠物形象根据哔哩哔哩 UP 主 [初风y不行](https://space.bilibili.com/651923923/) 的 Q 版形象改编，使用时须保留署名。

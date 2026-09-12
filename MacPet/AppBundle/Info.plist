@@ -23,7 +23,7 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSHumanReadableCopyright</key>
-    <string>个人非商业使用。默认形象：Bilibili 初风y不行</string>
+    <string>个人非商业使用。默认形象根据初风y不行的Q版形象改编</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 </dict>
