@@ -106,6 +106,11 @@ public final class PetRuntime: @unchecked Sendable {
         refreshFocus()
     }
 
+    public func focusDurationText() -> String? {
+        guard let elapsed = focus.elapsed(at: now()) else { return nil }
+        return FocusClock.elapsedDescription(seconds: elapsed)
+    }
+
     @discardableResult
     public func feed() -> Bool {
         guard machine.state != .eat else { return false }

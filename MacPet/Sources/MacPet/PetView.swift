@@ -12,6 +12,7 @@ final class PetDisplay {
     var eatDuration: TimeInterval = 2.6
     var tick: Date = Date()
     var look: LookPose = .zero
+    var banner: String?
 }
 
 struct PetView: View {
@@ -40,7 +41,7 @@ struct PetView: View {
         .accessibilityHint(
             isEditingGlints
                 ? "拖动眼睛高光，右键完成调整"
-                : isResizing ? "拖动边角调整大小，右键完成调整" : "单击打开 ChatGPT，右键喂食或退出"
+                : isResizing ? "拖动边角调整大小，右键完成调整" : "单击打开 ChatGPT，专注中双击查看时长，右键喂食或退出"
         )
     }
 
@@ -87,6 +88,17 @@ struct PetView: View {
                     .scaleEffect(pose.tomatoScale)
                     .opacity(pose.tomatoOpacity)
                     .offset(x: tomatoPoint.x, y: tomatoPoint.y)
+                    .accessibilityHidden(true)
+            }
+
+            if let banner = display.banner {
+                Text(banner)
+                    .font(.system(size: max(10, size * 0.055), weight: .medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.black.opacity(0.55), in: Capsule())
+                    .offset(y: -size * 0.42)
                     .accessibilityHidden(true)
             }
         }

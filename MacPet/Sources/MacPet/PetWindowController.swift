@@ -19,6 +19,7 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
     private var persistWork: DispatchWorkItem?
     private var energyObservers: [NSObjectProtocol] = []
     private var isWindowOccluded = false
+    private var bannerHideWork: DispatchWorkItem?
 
     init(runtime: PetRuntime) {
         self.runtime = runtime
@@ -111,8 +112,25 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         updateMotionClock()
     }
 
+    var isFocusing: Bool { runtime.isFocusing }
+
     func handleLeftClick() {
         runtime.handleLeftClick()
+    }
+
+    func handleInspectFocus() {
+        guard let text = runtime.focusDurationText() else { return }
+        showBanner(text)
+    }
+
+    private func showBanner(_ text: String) {
+        display.banner = text
+        bannerHideWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.display.banner = nil
+        }
+        bannerHideWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.4, execute: work)
     }
 
     func handleDrag(to origin: NSPoint) {
@@ -143,13 +161,6 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         let feedItem = menu.addItem(withTitle: feedTitle, action: #selector(feedPet), keyEquivalent: "")
         feedItem.target = self
         feedItem.isEnabled = runtime.foodCount > 0 && runtime.petState != .eat
-
-        let pomodoroItem = menu.addItem(
-            withTitle: "完成一个番茄",
-            action: #selector(completePomodoro),
-            keyEquivalent: ""
-        )
-        pomodoroItem.target = self
 
         let focusTitle = runtime.isFocusing ? "停止专注" : "开始专注"
         let focusItem = menu.addItem(withTitle: focusTitle, action: #selector(toggleFocus), keyEquivalent: "")
@@ -201,14 +212,17 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         refreshDisplay()
     }
 
-    @objc private func completePomodoro() {
-        runtime.completePomodoro()
-        refreshDisplay()
-    }
-
     @objc private func toggleFocus() {
+        let foodBefore = runtime.foodCount
+        let wasFocusing = runtime.isFocusing
         runtime.toggleFocus()
         refreshDisplay()
+        if wasFocusing {
+            let gained = runtime.foodCount - foodBefore
+            if gained > 0 {
+                showBanner(gained == 1 ? "获得 1 个番茄" : "获得 \(gained) 个番茄")
+            }
+        }
     }
 
     @objc private func toggleResizeMode() {
@@ -553,6 +567,7 @@ final class PetContainerView: NSView {
     private var activeHandle: ResizeHandle?
     private var sizeAtDown: CGFloat?
     private var activeGlint: GlintSlot?
+    private var pendingClick: DispatchWorkItem?
 
     override var isOpaque: Bool { false }
 
@@ -620,8 +635,8 @@ final class PetContainerView: NSView {
     override func mouseUp(with event: NSEvent) {
         if isDragging {
             controller?.persistNow()
-        } else if event.clickCount == 1, controller?.isResizing != true, controller?.isEditingGlints != true {
-            controller?.handleLeftClick()
+        } else if controller?.isResizing != true, controller?.isEditingGlints != true {
+            handlePetClick(event)
         }
         mouseDownScreen = nil
         windowOriginAtDown = nil
@@ -649,6 +664,27 @@ final class PetContainerView: NSView {
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
+    }
+
+    private func handlePetClick(_ event: NSEvent) {
+        if event.clickCount >= 2, controller?.isFocusing == true {
+            pendingClick?.cancel()
+            pendingClick = nil
+            controller?.handleInspectFocus()
+            return
+        }
+        guard event.clickCount == 1 else { return }
+        if controller?.isFocusing == true {
+            pendingClick?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                self?.pendingClick = nil
+                self?.controller?.handleLeftClick()
+            }
+            pendingClick = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28, execute: work)
+            return
+        }
+        controller?.handleLeftClick()
     }
 
     private func handle(at point: NSPoint) -> ResizeHandle? {

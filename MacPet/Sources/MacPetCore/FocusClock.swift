@@ -42,6 +42,28 @@ public final class FocusClock: @unchecked Sendable {
         }
     }
 
+    public func elapsed(at now: Date) -> TimeInterval? {
+        guard let live = currentSession() else { return nil }
+        return now.timeIntervalSince(live.startedAt)
+    }
+
+    public static func elapsedDescription(seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds.rounded(.down)))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let secs = total % 60
+        if hours > 0 {
+            if minutes == 0 {
+                return "已专注 \(hours) 小时"
+            }
+            return "已专注 \(hours) 小时 \(minutes) 分钟"
+        }
+        if minutes > 0 {
+            return "已专注 \(minutes) 分钟"
+        }
+        return "已专注 \(secs) 秒"
+    }
+
     @discardableResult
     public func completePomodoro(at now: Date, durationMinutes: Int = 25) -> FocusSession {
         let session = FocusSession(

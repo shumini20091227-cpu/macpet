@@ -221,6 +221,24 @@ enum FocusClockSuite {
         try expectEqual(fetched.count, 1)
         try expectEqual(fetched[0].durationMinutes, 25)
     }
+
+    static func reportsElapsedWhileFocusing() async throws {
+        let clock = FocusClock()
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        try expect(clock.elapsed(at: start) == nil)
+        clock.startFocus(at: start)
+        try expectClose(clock.elapsed(at: start.addingTimeInterval(90)) ?? -1, 90)
+        clock.stopFocus(at: start.addingTimeInterval(120))
+        try expect(clock.elapsed(at: start.addingTimeInterval(180)) == nil)
+    }
+
+    static func formatsElapsedDescription() async throws {
+        try expectEqual(FocusClock.elapsedDescription(seconds: 12), "已专注 12 秒")
+        try expectEqual(FocusClock.elapsedDescription(seconds: 60), "已专注 1 分钟")
+        try expectEqual(FocusClock.elapsedDescription(seconds: 23 * 60 + 10), "已专注 23 分钟")
+        try expectEqual(FocusClock.elapsedDescription(seconds: 3600), "已专注 1 小时")
+        try expectEqual(FocusClock.elapsedDescription(seconds: 3660), "已专注 1 小时 1 分钟")
+    }
 }
 
 enum AppStoreSuite {
@@ -351,9 +369,15 @@ enum ChatGPTSuite {
     }
 }
 
+private final class DateBox: @unchecked Sendable {
+    var now: Date
+    init(_ now: Date) { self.now = now }
+}
+
 enum PetRuntimeSuite {
     private static func makeRuntime(
         browser: RecordingBrowser = RecordingBrowser(),
+        now: @escaping @Sendable () -> Date = { Date(timeIntervalSince1970: 1_700_000_000) },
         sleep: @escaping @Sendable (TimeInterval) async -> Void = { _ in }
     ) -> (PetRuntime, FocusClock, RecordingBrowser) {
         let suite = "MacPetRuntimeTests.\(UUID().uuidString)"
@@ -365,7 +389,7 @@ enum PetRuntimeSuite {
             focus: focus,
             settings: AppSettings(),
             browser: browser,
-            now: { Date(timeIntervalSince1970: 1_700_000_000) },
+            now: now,
             sleep: sleep
         )
         return (runtime, focus, browser)
@@ -399,6 +423,38 @@ enum PetRuntimeSuite {
         runtime.toggleFocus()
         try expectEqual(runtime.petState, .study)
         try expect(runtime.isFocusing)
+    }
+
+    static func stoppingTwentyFiveMinuteFocusGrantsOneFood() async throws {
+        let box = DateBox(Date(timeIntervalSince1970: 1_700_000_000))
+        let (runtime, _, _) = makeRuntime(now: { box.now })
+        runtime.toggleFocus()
+        box.now = box.now.addingTimeInterval(25 * 60)
+        runtime.toggleFocus()
+        try expectEqual(runtime.foodCount, 1)
+        try expect(!runtime.isFocusing)
+        try expectEqual(runtime.petState, .rest)
+    }
+
+    static func stoppingFourMinuteFocusGrantsNothing() async throws {
+        let box = DateBox(Date(timeIntervalSince1970: 1_700_000_000))
+        let (runtime, _, _) = makeRuntime(now: { box.now })
+        runtime.toggleFocus()
+        box.now = box.now.addingTimeInterval(4 * 60)
+        runtime.toggleFocus()
+        try expectEqual(runtime.foodCount, 0)
+        try expect(!runtime.isFocusing)
+    }
+
+    static func focusDurationTextOnlyWhileFocusing() async throws {
+        let box = DateBox(Date(timeIntervalSince1970: 1_700_000_000))
+        let (runtime, _, _) = makeRuntime(now: { box.now })
+        try expect(runtime.focusDurationText() == nil)
+        runtime.toggleFocus()
+        box.now = box.now.addingTimeInterval(12 * 60)
+        try expectEqual(runtime.focusDurationText(), "已专注 12 分钟")
+        runtime.toggleFocus()
+        try expect(runtime.focusDurationText() == nil)
     }
 
     static func leftClickOpensChatGPT() async throws {
