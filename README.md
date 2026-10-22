@@ -4,7 +4,7 @@ macOS 桌面宠物，支持透明悬浮、GIF 动画表情、省电播放和表�
 
 ## 下载与安装
 
-在 [GitHub Releases](https://github.com/shumini20091227-cpu/macpet/releases) 下载最新的 `MacPet-1.2.1-universal.zip`。
+在 [GitHub Releases](https://github.com/shumini20091227-cpu/macpet/releases) 下载最新的 `MacPet-1.2.2-universal.zip`。
 
 1. 解压压缩包。
 2. 将 `MacPet.app` 拖入「应用程序」。
@@ -14,7 +14,9 @@ macOS 桌面宠物，支持透明悬浮、GIF 动画表情、省电播放和表�
 
 升级前请退出旧版，再替换应用。已导入表情、删除状态及偏好保留在本机；不会覆盖现有同 ID 表情。
 
-## v1.2.1
+## v1.2.2
+
+新增透明鹦鹉应用图标，Finder、Dock 和安装后的应用均使用该图标。
 
 移除专注计时、番茄奖励和投喂功能及其相关菜单、动画与提示。专注于桌面陪伴与动画表情。
 
@@ -25,7 +27,7 @@ macOS 桌面宠物，支持透明悬浮、GIF 动画表情、省电播放和表�
 - 保留 GIF 透明背景及原始帧序，速度设置和表情选择在重启后保留。
 - 修复“减少动态效果”导致 GIF 静止的问题。
 
-完整记录见 [CHANGELOG.md](CHANGELOG.md)，发布说明见 [v1.2.1](docs/releases/v1.2.1.md)。
+完整记录见 [CHANGELOG.md](CHANGELOG.md)，发布说明见 [v1.2.2](docs/releases/v1.2.2.md)。
 
 ## 使用
 

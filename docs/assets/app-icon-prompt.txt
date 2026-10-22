@@ -1,0 +1,5 @@
+Tool: built-in image_gen; transparent_background=true.
+Use case: background-extraction. Asset: macOS app icon.
+Prompt: Remove the white/off-white background and thin grey border from the supplied cartoon parrot. Preserve its green body, yellow beak, blue crest, pink tail, white eye, black pupil and feet, and purple horizontal perch. Remove the long vertical perch stem below it. Center the full cutout on a square transparent canvas with a small transparent margin. No text, background tile or new objects. Keep the eye white opaque.
+Output master: MacPet/AppBundle/AppIcon.png
+Packaged icon: MacPet/AppBundle/MacPet.icns
