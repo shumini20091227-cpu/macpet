@@ -3,10 +3,6 @@ import Foundation
 
 public final class AppStore: @unchecked Sendable {
     private enum Key {
-        static let foodCount = "foodCount"
-        static let rewardedSessionIDs = "rewardedSessionIDs"
-        static let foodsGrantedOnDay = "foodsGrantedOnDay"
-        static let grantDay = "grantDay"
         static let windowOriginX = "windowOriginX"
         static let windowOriginY = "windowOriginY"
         static let hasWindowOrigin = "hasWindowOrigin"
@@ -19,7 +15,6 @@ public final class AppStore: @unchecked Sendable {
     }
 
     private let defaults: UserDefaults
-    private var cachedLedger: FoodLedger
     private var cachedWindowOrigin: CGPoint?
     private var cachedIsWindowHidden: Bool
     private var cachedPetSize: CGFloat
@@ -28,7 +23,6 @@ public final class AppStore: @unchecked Sendable {
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        cachedLedger = Self.loadLedger(from: defaults)
         cachedWindowOrigin = Self.loadWindowOrigin(from: defaults)
         cachedIsWindowHidden = defaults.bool(forKey: Key.isWindowHidden)
         cachedPetSize = Self.loadPetSize(from: defaults)
@@ -44,17 +38,6 @@ public final class AppStore: @unchecked Sendable {
             yKey: Key.rightGlintY,
             fallback: PetMotion.rightEyeCenter
         )
-    }
-
-    public var ledger: FoodLedger { cachedLedger }
-
-    public func save(ledger: FoodLedger) {
-        guard ledger != cachedLedger else { return }
-        cachedLedger = ledger
-        defaults.set(ledger.foodCount, forKey: Key.foodCount)
-        defaults.set(Array(ledger.rewardedSessionIDs).sorted(), forKey: Key.rewardedSessionIDs)
-        defaults.set(ledger.foodsGrantedOnDay, forKey: Key.foodsGrantedOnDay)
-        defaults.set(ledger.grantDay.timeIntervalSince1970, forKey: Key.grantDay)
     }
 
     public var windowOrigin: CGPoint? {
@@ -124,15 +107,6 @@ public final class AppStore: @unchecked Sendable {
         cachedRightGlint = unit
         defaults.set(Double(unit.x), forKey: Key.rightGlintX)
         defaults.set(Double(unit.y), forKey: Key.rightGlintY)
-    }
-
-    private static func loadLedger(from defaults: UserDefaults) -> FoodLedger {
-        FoodLedger(
-            foodCount: defaults.integer(forKey: Key.foodCount),
-            rewardedSessionIDs: Set(defaults.stringArray(forKey: Key.rewardedSessionIDs) ?? []),
-            foodsGrantedOnDay: defaults.integer(forKey: Key.foodsGrantedOnDay),
-            grantDay: Date(timeIntervalSince1970: defaults.object(forKey: Key.grantDay) as? TimeInterval ?? 0)
-        )
     }
 
     private static func loadWindowOrigin(from defaults: UserDefaults) -> CGPoint? {

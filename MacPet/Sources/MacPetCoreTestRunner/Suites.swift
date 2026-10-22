@@ -2,185 +2,6 @@ import CoreGraphics
 import Foundation
 import MacPetCore
 
-enum FoodEngineSuite {
-    private static let calendar: Calendar = {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        return calendar
-    }()
-
-    private static let day = Date(timeIntervalSince1970: 1_700_000_000)
-    private static let engine = FoodEngine(settings: AppSettings())
-
-    private static func session(id: String, minutes: Int, endingAt end: Date) -> FocusSession {
-        FocusSession(
-            id: id,
-            startedAt: end.addingTimeInterval(TimeInterval(-minutes * 60)),
-            endedAt: end
-        )
-    }
-
-    private static func emptyLedger(at now: Date) -> FoodLedger {
-        FoodLedger(
-            foodCount: 0,
-            rewardedSessionIDs: [],
-            foodsGrantedOnDay: 0,
-            grantDay: calendar.startOfDay(for: now)
-        )
-    }
-
-    static func twentyFiveMinutesGrantsOneFood() async throws {
-        let result = engine.apply(
-            sessions: [session(id: "a", minutes: 25, endingAt: day)],
-            ledger: emptyLedger(at: day),
-            now: day,
-            calendar: calendar
-        )
-        try expectEqual(result.foodCount, 1)
-        try expectEqual(result.rewardedSessionIDs, ["a"])
-        try expectEqual(result.foodsGrantedOnDay, 1)
-    }
-
-    static func fortyNineMinutesGrantsOneFood() async throws {
-        let result = engine.apply(
-            sessions: [session(id: "b", minutes: 49, endingAt: day)],
-            ledger: emptyLedger(at: day),
-            now: day,
-            calendar: calendar
-        )
-        try expectEqual(result.foodCount, 1)
-    }
-
-    static func fiftyMinutesGrantsTwoFoods() async throws {
-        let result = engine.apply(
-            sessions: [session(id: "c", minutes: 50, endingAt: day)],
-            ledger: emptyLedger(at: day),
-            now: day,
-            calendar: calendar
-        )
-        try expectEqual(result.foodCount, 2)
-        try expectEqual(result.foodsGrantedOnDay, 2)
-    }
-
-    static func sessionShorterThanMinimumGrantsNothing() async throws {
-        let result = engine.apply(
-            sessions: [session(id: "d", minutes: 4, endingAt: day)],
-            ledger: emptyLedger(at: day),
-            now: day,
-            calendar: calendar
-        )
-        try expectEqual(result.foodCount, 0)
-        try expect(result.rewardedSessionIDs.isEmpty)
-    }
-
-    static func duplicateSessionIsNotRewardedTwice() async throws {
-        let sessions = [session(id: "a", minutes: 25, endingAt: day)]
-        let first = engine.apply(sessions: sessions, ledger: emptyLedger(at: day), now: day, calendar: calendar)
-        let second = engine.apply(sessions: sessions, ledger: first, now: day, calendar: calendar)
-        try expectEqual(second.foodCount, 1)
-        try expectEqual(second.foodsGrantedOnDay, 1)
-    }
-
-    static func dailyCapBlocksAdditionalFood() async throws {
-        var ledger = emptyLedger(at: day)
-        for index in 1...12 {
-            ledger = engine.apply(
-                sessions: [session(id: "s\(index)", minutes: 25, endingAt: day)],
-                ledger: ledger,
-                now: day,
-                calendar: calendar
-            )
-        }
-        try expectEqual(ledger.foodCount, 12)
-        let extra = engine.apply(
-            sessions: [session(id: "s13", minutes: 25, endingAt: day)],
-            ledger: ledger,
-            now: day,
-            calendar: calendar
-        )
-        try expectEqual(extra.foodCount, 12)
-        try expect(extra.rewardedSessionIDs.contains("s13"))
-        try expectEqual(extra.foodsGrantedOnDay, 12)
-    }
-
-    static func newDayResetsDailyCapButKeepsFood() async throws {
-        var ledger = emptyLedger(at: day)
-        ledger.foodCount = 3
-        ledger.foodsGrantedOnDay = 12
-        ledger.rewardedSessionIDs = ["old"]
-        let nextDay = calendar.date(byAdding: .day, value: 1, to: day)!
-        let result = engine.apply(
-            sessions: [session(id: "next", minutes: 25, endingAt: nextDay)],
-            ledger: ledger,
-            now: nextDay,
-            calendar: calendar
-        )
-        try expectEqual(result.foodCount, 4)
-        try expectEqual(result.foodsGrantedOnDay, 1)
-        try expectEqual(result.grantDay, calendar.startOfDay(for: nextDay))
-    }
-
-    static func feedDeductsOneFood() async throws {
-        var ledger = emptyLedger(at: day)
-        ledger.foodCount = 2
-        try expect(engine.consumeFood(&ledger))
-        try expectEqual(ledger.foodCount, 1)
-    }
-
-    static func feedFailsWhenEmpty() async throws {
-        var ledger = emptyLedger(at: day)
-        try expect(!engine.consumeFood(&ledger))
-        try expectEqual(ledger.foodCount, 0)
-    }
-}
-
-enum PetStateMachineSuite {
-    static func startsInRest() async throws {
-        try expectEqual(PetStateMachine().state, .rest)
-    }
-
-    static func liveSessionMovesToStudy() async throws {
-        var machine = PetStateMachine()
-        machine.setLiveSessionActive(true)
-        try expectEqual(machine.state, .study)
-    }
-
-    static func endingLiveSessionReturnsToRest() async throws {
-        var machine = PetStateMachine()
-        machine.setLiveSessionActive(true)
-        machine.setLiveSessionActive(false)
-        try expectEqual(machine.state, .rest)
-    }
-
-    static func startEatingMovesToEatFromRestOrStudy() async throws {
-        var machine = PetStateMachine()
-        machine.startEating()
-        try expectEqual(machine.state, .eat)
-
-        machine = PetStateMachine()
-        machine.setLiveSessionActive(true)
-        machine.startEating()
-        try expectEqual(machine.state, .eat)
-    }
-
-    static func liveSessionDoesNotLeaveEatUntilFinished() async throws {
-        var machine = PetStateMachine()
-        machine.startEating()
-        machine.setLiveSessionActive(true)
-        try expectEqual(machine.state, .eat)
-        machine.setLiveSessionActive(false)
-        try expectEqual(machine.state, .eat)
-    }
-
-    static func finishEatingReturnsToRest() async throws {
-        var machine = PetStateMachine()
-        machine.setLiveSessionActive(true)
-        machine.startEating()
-        machine.finishEating()
-        try expectEqual(machine.state, .rest)
-    }
-}
-
 enum PetGestureSuite {
     static func zeroMovementIsClick() async throws {
         try expectEqual(classifyPetGesture(translation: .zero, threshold: 5), .click)
@@ -197,50 +18,6 @@ enum PetGestureSuite {
     }
 }
 
-enum FocusClockSuite {
-    static func completePomodoroCreatesTwentyFiveMinuteSession() async throws {
-        let clock = FocusClock()
-        let now = Date(timeIntervalSince1970: 1_700_000_000)
-        let session = clock.completePomodoro(at: now)
-        try expectEqual(session.durationMinutes, 25)
-        try expectEqual(session.endedAt, now)
-        let fetched = clock.sessions(since: .distantPast)
-        try expectEqual(fetched.map(\.id), [session.id])
-        try expect(clock.currentSession() == nil)
-    }
-
-    static func startAndStopFocusTracksLiveSession() async throws {
-        let clock = FocusClock()
-        let start = Date(timeIntervalSince1970: 1_700_000_000)
-        clock.startFocus(at: start)
-        try expectEqual(clock.currentSession()?.startedAt, start)
-        let end = start.addingTimeInterval(25 * 60)
-        clock.stopFocus(at: end)
-        try expect(clock.currentSession() == nil)
-        let fetched = clock.sessions(since: .distantPast)
-        try expectEqual(fetched.count, 1)
-        try expectEqual(fetched[0].durationMinutes, 25)
-    }
-
-    static func reportsElapsedWhileFocusing() async throws {
-        let clock = FocusClock()
-        let start = Date(timeIntervalSince1970: 1_700_000_000)
-        try expect(clock.elapsed(at: start) == nil)
-        clock.startFocus(at: start)
-        try expectClose(clock.elapsed(at: start.addingTimeInterval(90)) ?? -1, 90)
-        clock.stopFocus(at: start.addingTimeInterval(120))
-        try expect(clock.elapsed(at: start.addingTimeInterval(180)) == nil)
-    }
-
-    static func formatsElapsedDescription() async throws {
-        try expectEqual(FocusClock.elapsedDescription(seconds: 12), "已专注 12 秒")
-        try expectEqual(FocusClock.elapsedDescription(seconds: 60), "已专注 1 分钟")
-        try expectEqual(FocusClock.elapsedDescription(seconds: 23 * 60 + 10), "已专注 23 分钟")
-        try expectEqual(FocusClock.elapsedDescription(seconds: 3600), "已专注 1 小时")
-        try expectEqual(FocusClock.elapsedDescription(seconds: 3660), "已专注 1 小时 1 分钟")
-    }
-}
-
 enum AppStoreSuite {
     private static func makeStore() -> AppStore {
         let suite = "MacPetTests.\(UUID().uuidString)"
@@ -249,20 +26,10 @@ enum AppStoreSuite {
         return AppStore(defaults: defaults)
     }
 
-    static func persistsFoodLedgerAndWindow() async throws {
+    static func persistsWindowSettings() async throws {
         let store = makeStore()
-        let ledger = FoodLedger(
-            foodCount: 4,
-            rewardedSessionIDs: ["one", "two"],
-            foodsGrantedOnDay: 2,
-            grantDay: Date(timeIntervalSince1970: 1_700_000_000)
-        )
-        store.save(ledger: ledger)
         store.windowOrigin = CGPoint(x: 120, y: 80)
         store.isWindowHidden = true
-        try expectEqual(store.ledger.foodCount, 4)
-        try expectEqual(store.ledger.rewardedSessionIDs, ["one", "two"])
-        try expectEqual(store.ledger.foodsGrantedOnDay, 2)
         try expectEqual(store.windowOrigin, CGPoint(x: 120, y: 80))
         try expect(store.isWindowHidden)
         store.petSize = 300
@@ -273,10 +40,8 @@ enum AppStoreSuite {
         try expectClose(Double(store.rightGlint.x), 0.62)
     }
 
-    static func defaultLedgerIsEmpty() async throws {
+    static func defaultWindowSettings() async throws {
         let store = makeStore()
-        try expectEqual(store.ledger.foodCount, 0)
-        try expect(store.ledger.rewardedSessionIDs.isEmpty)
         try expect(store.windowOrigin == nil)
         try expect(!store.isWindowHidden)
         try expectClose(Double(store.petSize), Double(PetSizing.defaultSize))
@@ -369,141 +134,6 @@ enum ChatGPTSuite {
     }
 }
 
-private final class DateBox: @unchecked Sendable {
-    var now: Date
-    init(_ now: Date) { self.now = now }
-}
-
-enum PetRuntimeSuite {
-    private static func makeRuntime(
-        browser: RecordingBrowser = RecordingBrowser(),
-        now: @escaping @Sendable () -> Date = { Date(timeIntervalSince1970: 1_700_000_000) },
-        sleep: @escaping @Sendable (TimeInterval) async -> Void = { _ in }
-    ) -> (PetRuntime, FocusClock, RecordingBrowser) {
-        let suite = "MacPetRuntimeTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        let focus = FocusClock()
-        let runtime = PetRuntime(
-            store: AppStore(defaults: defaults),
-            focus: focus,
-            settings: AppSettings(),
-            browser: browser,
-            now: now,
-            sleep: sleep
-        )
-        return (runtime, focus, browser)
-    }
-
-    static func completingPomodoroAddsFood() async throws {
-        let (runtime, _, _) = makeRuntime()
-        runtime.completePomodoro()
-        try expectEqual(runtime.foodCount, 1)
-        try expectEqual(runtime.petState, .rest)
-    }
-
-    static func feedingConsumesFoodAndPlaysEatThenRest() async throws {
-        let (runtime, _, _) = makeRuntime()
-        runtime.completePomodoro()
-        try expect(runtime.feed())
-        try expectEqual(runtime.foodCount, 0)
-        try expectEqual(runtime.petState, .eat)
-        await runtime.waitForEatToFinish()
-        try expectEqual(runtime.petState, .rest)
-    }
-
-    static func feedFailsWithoutFood() async throws {
-        let (runtime, _, _) = makeRuntime()
-        try expect(!runtime.feed())
-        try expectEqual(runtime.petState, .rest)
-    }
-
-    static func liveFocusMovesPetToStudy() async throws {
-        let (runtime, _, _) = makeRuntime()
-        runtime.toggleFocus()
-        try expectEqual(runtime.petState, .study)
-        try expect(runtime.isFocusing)
-    }
-
-    static func stoppingTwentyFiveMinuteFocusGrantsOneFood() async throws {
-        let box = DateBox(Date(timeIntervalSince1970: 1_700_000_000))
-        let (runtime, _, _) = makeRuntime(now: { box.now })
-        runtime.toggleFocus()
-        box.now = box.now.addingTimeInterval(25 * 60)
-        runtime.toggleFocus()
-        try expectEqual(runtime.foodCount, 1)
-        try expect(!runtime.isFocusing)
-        try expectEqual(runtime.petState, .rest)
-    }
-
-    static func stoppingFourMinuteFocusGrantsNothing() async throws {
-        let box = DateBox(Date(timeIntervalSince1970: 1_700_000_000))
-        let (runtime, _, _) = makeRuntime(now: { box.now })
-        runtime.toggleFocus()
-        box.now = box.now.addingTimeInterval(4 * 60)
-        runtime.toggleFocus()
-        try expectEqual(runtime.foodCount, 0)
-        try expect(!runtime.isFocusing)
-    }
-
-    static func focusDurationTextOnlyWhileFocusing() async throws {
-        let box = DateBox(Date(timeIntervalSince1970: 1_700_000_000))
-        let (runtime, _, _) = makeRuntime(now: { box.now })
-        try expect(runtime.focusDurationText() == nil)
-        runtime.toggleFocus()
-        box.now = box.now.addingTimeInterval(12 * 60)
-        try expectEqual(runtime.focusDurationText(), "已专注 12 分钟")
-        runtime.toggleFocus()
-        try expect(runtime.focusDurationText() == nil)
-    }
-
-    static func leftClickOpensChatGPT() async throws {
-        let browser = RecordingBrowser()
-        let (runtime, _, _) = makeRuntime(browser: browser)
-        runtime.handleLeftClick()
-        try expectEqual(browser.opened, [ChatGPTOpener.url])
-    }
-
-    static func feedRecordsEatStartTime() async throws {
-        let (runtime, _, _) = makeRuntime()
-        try expect(runtime.eatStartedAt == nil)
-        runtime.completePomodoro()
-        try expect(runtime.feed())
-        try expect(runtime.eatStartedAt != nil)
-        await runtime.waitForEatToFinish()
-        try expect(runtime.eatStartedAt == nil)
-    }
-
-    static func quietFocusRefreshDoesNotKeepNotifying() async throws {
-        let (runtime, _, _) = makeRuntime()
-        let counter = NotifyCounter()
-        runtime.onChange = { counter.increment() }
-        runtime.refreshFocus()
-        let afterFirst = counter.value
-        runtime.refreshFocus()
-        runtime.refreshFocus()
-        try expectEqual(counter.value, afterFirst)
-        try expect(afterFirst <= 1)
-    }
-}
-
-private final class NotifyCounter: @unchecked Sendable {
-    private let lock = NSLock()
-    private var count = 0
-
-    var value: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return count
-    }
-
-    func increment() {
-        lock.lock()
-        defer { lock.unlock() }
-        count += 1
-    }
-}
-
 enum PetMotionSuite {
     static func breathLoopsAndExpandsOnInhale() async throws {
         let period = PetMotion.breathPeriod
@@ -519,53 +149,6 @@ enum PetMotionSuite {
         try expect(exhale < rest)
         try expectClose(Double(looped), Double(rest))
         try expect(PetMotion.breathScaleY(elapsed: period / 4) > PetMotion.breathScaleX(elapsed: period / 4))
-    }
-
-    static func studyTiltLooksDownAndNods() async throws {
-        let period = PetMotion.studyPeriod
-        let start = PetMotion.studyTiltDegrees(elapsed: 0)
-        let nod = PetMotion.studyTiltDegrees(elapsed: period / 4)
-        try expect(start < 0)
-        try expect(nod < start)
-        try expectClose(PetMotion.studyPageFlip(elapsed: 0), 0)
-        try expectClose(PetMotion.studyPageFlip(elapsed: PetMotion.studyPagePeriod / 2), 1, tolerance: 0.02)
-    }
-
-    static func eatTomatoApproachesThenDisappears() async throws {
-        try expectClose(Double(PetMotion.eatProgress(elapsed: -1, duration: 2)), 0)
-        try expectClose(Double(PetMotion.eatProgress(elapsed: 1, duration: 2)), 0.5)
-        try expectClose(Double(PetMotion.eatProgress(elapsed: 3, duration: 2)), 1)
-
-        let start = PetMotion.eatPose(progress: 0)
-        let approaching = PetMotion.eatPose(progress: 0.2)
-        let chewing = PetMotion.eatPose(progress: 0.5)
-        let done = PetMotion.eatPose(progress: 1)
-
-        try expectClose(Double(start.tomatoOpacity), 1)
-        try expectClose(Double(start.tomatoTravel), 0)
-        try expect(approaching.tomatoTravel > start.tomatoTravel)
-        try expect(abs(start.tomatoRotation) > abs(approaching.tomatoRotation))
-        try expect(chewing.characterScaleY != 1)
-        try expect(chewing.tomatoScale < start.tomatoScale)
-        try expectClose(Double(done.tomatoOpacity), 0)
-        try expectClose(Double(done.characterScaleY), 1)
-        try expectClose(done.tomatoRotation, 0)
-    }
-
-    static func tomatoTravelsFromLapToMouth() async throws {
-        let size: CGFloat = 220
-        let start = PetMotion.tomatoOffset(travel: 0, size: size)
-        let mid = PetMotion.tomatoOffset(travel: 0.5, size: size)
-        let end = PetMotion.tomatoOffset(travel: 1, size: size)
-
-        try expect(start.x > end.x)
-        try expect(start.y > end.y)
-        try expect(mid.x < start.x && mid.x > end.x)
-        try expectClose(Double(PetMotion.tomatoDropPoints), 72 / 2.54, tolerance: 0.01)
-        try expectClose(Double(start.y), Double(size * 0.26 + PetMotion.tomatoDropPoints), tolerance: 0.01)
-        try expectClose(Double(end.y), Double(size * 0.05 + PetMotion.tomatoDropPoints), tolerance: 0.01)
-        try expect(end.x > -size * 0.04)
-        try expect(end.x < size * 0.08)
     }
 
     static func looksTowardMouseLikeInventory() async throws {
@@ -590,8 +173,9 @@ enum PetMotionSuite {
         try expect(up.offsetY < 0)
         try expect(abs(right.headTilt) > 6)
         try expectClose(Double(far.eyeX), Double(farther.eyeX), tolerance: 0.05)
-        try expect(PetMotion.lookWeight(state: .rest, isResizing: false) > PetMotion.lookWeight(state: .study, isResizing: false))
-        try expect(PetMotion.lookWeight(state: .eat, isResizing: false) < PetMotion.lookWeight(state: .rest, isResizing: false))
+
+        try expectEqual(PetMotion.lookWeight(isResizing: false), 1)
+        try expectEqual(PetMotion.lookWeight(isResizing: true), 0.25)
 
         let blended = PetMotion.blendLook(LookPose.zero, toward: right, factor: 0.5)
         try expect(abs(Double(blended.eyeX)) > 0)

@@ -65,15 +65,9 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         panel.contentView = container
 
         restorePosition(for: panel)
-        refreshDisplay()
         observeEnergySignals()
         updateMotionClock()
 
-        runtime.onChange = { [weak self] in
-            Task { @MainActor in
-                self?.refreshDisplay()
-            }
-        }
     }
 
     @available(*, unavailable)
@@ -86,7 +80,6 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         keepVisibleOverSpaces()
         window?.orderFrontRegardless()
         isWindowOccluded = false
-        runtime.refreshFocus()
         updateMotionClock()
     }
 
@@ -109,19 +102,11 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         keepVisibleOverSpaces()
         window?.makeKeyAndOrderFront(nil)
         isWindowOccluded = false
-        runtime.refreshFocus()
         updateMotionClock()
     }
 
-    var isFocusing: Bool { runtime.isFocusing }
-
     func handleLeftClick() {
         runtime.handleLeftClick()
-    }
-
-    func handleInspectFocus() {
-        guard let text = runtime.focusDurationText() else { return }
-        showBanner(text)
     }
 
     private func showBanner(_ text: String) {
@@ -147,7 +132,6 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
     }
 
     var currentPetSize: CGFloat { runtime.petSize }
-    var displayedPetState: PetState { runtime.petState }
 
     func applyPetSize(_ size: CGFloat) {
         let footprint = petFootprint()
@@ -209,15 +193,6 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         energyItem.target = self
         energyItem.state = PetExpressions.energySaving ? .on : .off
         menu.addItem(.separator())
-        let feedTitle = "喂番茄（\(runtime.foodCount)）"
-        let feedItem = menu.addItem(withTitle: feedTitle, action: #selector(feedPet), keyEquivalent: "")
-        feedItem.target = self
-        feedItem.isEnabled = runtime.foodCount > 0 && runtime.petState != .eat
-
-        let focusTitle = runtime.isFocusing ? "停止专注" : "开始专注"
-        let focusItem = menu.addItem(withTitle: focusTitle, action: #selector(toggleFocus), keyEquivalent: "")
-        focusItem.target = self
-
         menu.addItem(.separator())
 
         let resizeItem = menu.addItem(
@@ -342,24 +317,6 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         alert.messageText = "无法加载表情"
         alert.informativeText = error.localizedDescription
         alert.runModal()
-    }
-
-    @objc private func feedPet() {
-        _ = runtime.feed()
-        refreshDisplay()
-    }
-
-    @objc private func toggleFocus() {
-        let foodBefore = runtime.foodCount
-        let wasFocusing = runtime.isFocusing
-        runtime.toggleFocus()
-        refreshDisplay()
-        if wasFocusing {
-            let gained = runtime.foodCount - foodBefore
-            if gained > 0 {
-                showBanner(gained == 1 ? "获得 1 个番茄" : "获得 \(gained) 个番茄")
-            }
-        }
     }
 
     @objc private func toggleResizeMode() {
@@ -536,13 +493,6 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    private func refreshDisplay() {
-        display.state = runtime.petState
-        display.foodCount = runtime.foodCount
-        display.eatStartedAt = runtime.eatStartedAt
-        display.eatDuration = runtime.settings.eatAnimationDuration
-    }
-
     private func observeEnergySignals() {
         let workspace = NSWorkspace.shared.notificationCenter
         let distributed = DistributedNotificationCenter.default()
@@ -709,7 +659,7 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
             mouse: mouse,
             petCenter: petCenter,
             petSize: petSize
-        ).scaled(by: PetMotion.lookWeight(state: display.state, isResizing: isResizing))
+        ).scaled(by: PetMotion.lookWeight(isResizing: isResizing))
         lastLookTarget = target
         if PetEnergy.lookHasSettled(display.look, target) {
             display.look = target
@@ -728,7 +678,6 @@ final class PetContainerView: NSView {
     private var activeHandle: ResizeHandle?
     private var sizeAtDown: CGFloat?
     private var activeGlint: GlintSlot?
-    private var pendingClick: DispatchWorkItem?
 
     override var isOpaque: Bool { false }
 
@@ -828,23 +777,7 @@ final class PetContainerView: NSView {
     }
 
     private func handlePetClick(_ event: NSEvent) {
-        if event.clickCount >= 2, controller?.isFocusing == true {
-            pendingClick?.cancel()
-            pendingClick = nil
-            controller?.handleInspectFocus()
-            return
-        }
         guard event.clickCount == 1 else { return }
-        if controller?.isFocusing == true {
-            pendingClick?.cancel()
-            let work = DispatchWorkItem { [weak self] in
-                self?.pendingClick = nil
-                self?.controller?.handleLeftClick()
-            }
-            pendingClick = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28, execute: work)
-            return
-        }
         controller?.handleLeftClick()
     }
 
@@ -854,10 +787,7 @@ final class PetContainerView: NSView {
     }
 
     private func isCharacterPixel(at point: NSPoint) -> Bool {
-        guard let cgImage = PetAsset.displayedCGImage(
-            state: controller?.displayedPetState ?? .rest,
-            isEditingGlints: controller?.isEditingGlints == true
-        ) else {
+        guard let cgImage = PetAsset.characterCGImage() else {
             return true
         }
 

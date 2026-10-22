@@ -6,31 +6,6 @@ public enum GlintSlot: String, CaseIterable, Sendable {
     case right
 }
 
-public struct EatPose: Equatable, Sendable {
-    public var characterScaleY: CGFloat
-    public var characterOffsetY: CGFloat
-    public var tomatoTravel: CGFloat
-    public var tomatoScale: CGFloat
-    public var tomatoOpacity: CGFloat
-    public var tomatoRotation: Double
-
-    public init(
-        characterScaleY: CGFloat,
-        characterOffsetY: CGFloat,
-        tomatoTravel: CGFloat,
-        tomatoScale: CGFloat,
-        tomatoOpacity: CGFloat,
-        tomatoRotation: Double
-    ) {
-        self.characterScaleY = characterScaleY
-        self.characterOffsetY = characterOffsetY
-        self.tomatoTravel = tomatoTravel
-        self.tomatoScale = tomatoScale
-        self.tomatoOpacity = tomatoOpacity
-        self.tomatoRotation = tomatoRotation
-    }
-}
-
 public struct LookPose: Equatable, Sendable {
     public var eyeX: CGFloat
     public var eyeY: CGFloat
@@ -61,10 +36,6 @@ public struct LookPose: Equatable, Sendable {
 
 public enum PetMotion {
     public static let breathPeriod: TimeInterval = 2.6
-    public static let studyPeriod: TimeInterval = 2.0
-    public static let studyPagePeriod: TimeInterval = 1.6
-    /// 1 cm at 72 points per inch.
-    public static let tomatoDropPoints: CGFloat = 72 / 2.54
     /// Extra glint shift along +y (down). Zero keeps highlights on the eyes.
     public static let glintDropPoints: CGFloat = 0
     public static let lookHeadTiltAmplitude: Double = 14
@@ -90,14 +61,6 @@ public enum PetMotion {
         2.4 * sine(elapsed: elapsed, period: breathPeriod)
     }
 
-    public static func studyTiltDegrees(elapsed: TimeInterval) -> Double {
-        -4.5 - 3.5 * Double(sine(elapsed: elapsed, period: studyPeriod))
-    }
-
-    public static func studyPageFlip(elapsed: TimeInterval) -> Double {
-        abs(sin(.pi * elapsed / studyPagePeriod))
-    }
-
     public static func lookPose(mouse: CGPoint, petCenter: CGPoint, petSize: CGFloat) -> LookPose {
         let range = max(petSize * 1.8, 1)
         let dx = max(-1, min(1, (mouse.x - petCenter.x) / range))
@@ -113,14 +76,8 @@ public enum PetMotion {
         )
     }
 
-    public static func lookWeight(state: PetState, isResizing: Bool) -> CGFloat {
-        let base: CGFloat
-        switch state {
-        case .rest: base = 1
-        case .study: base = 0.4
-        case .eat: base = 0.3
-        }
-        return isResizing ? base * 0.25 : base
+    public static func lookWeight(isResizing: Bool) -> CGFloat {
+        isResizing ? 0.25 : 1
     }
 
     public static func aspectFit(imageSize: CGSize, in bounds: CGSize) -> CGRect {
@@ -183,63 +140,6 @@ public enum PetMotion {
             headTilt: current.headTilt + (target.headTilt - current.headTilt) * Double(t),
             offsetX: current.offsetX + (target.offsetX - current.offsetX) * t,
             offsetY: current.offsetY + (target.offsetY - current.offsetY) * t
-        )
-    }
-
-    public static func eatProgress(elapsed: TimeInterval, duration: TimeInterval) -> CGFloat {
-        guard duration > 0 else { return 1 }
-        return CGFloat(min(max(elapsed / duration, 0), 1))
-    }
-
-    public static func tomatoOffset(travel: CGFloat, size: CGFloat) -> CGPoint {
-        let t = min(max(travel, 0), 1)
-        let start = CGPoint(x: size * 0.20, y: size * 0.26 + tomatoDropPoints)
-        let end = CGPoint(x: size * 0.02, y: size * 0.05 + tomatoDropPoints)
-        return CGPoint(
-            x: start.x + (end.x - start.x) * t,
-            y: start.y + (end.y - start.y) * t
-        )
-    }
-
-    public static func eatPose(progress: CGFloat) -> EatPose {
-        let progress = min(max(progress, 0), 1)
-        let approachEnd: CGFloat = 0.32
-        let chewEnd: CGFloat = 0.84
-
-        if progress < approachEnd {
-            let t = progress / approachEnd
-            let eased = t * t * (3 - 2 * t)
-            return EatPose(
-                characterScaleY: 1 + 0.02 * eased,
-                characterOffsetY: 2 * eased,
-                tomatoTravel: eased,
-                tomatoScale: 1,
-                tomatoOpacity: 1,
-                tomatoRotation: 16 * Double(1 - eased)
-            )
-        }
-
-        if progress < chewEnd {
-            let chewT = (progress - approachEnd) / (chewEnd - approachEnd)
-            let bite = abs(sin(chewT * 5 * .pi))
-            return EatPose(
-                characterScaleY: 1 + 0.08 * bite,
-                characterOffsetY: 4 * bite,
-                tomatoTravel: 1,
-                tomatoScale: 1 - 0.72 * chewT,
-                tomatoOpacity: 1 - 0.12 * chewT,
-                tomatoRotation: 6 * Double(sin(chewT * 6 * .pi))
-            )
-        }
-
-        let fade = (progress - chewEnd) / (1 - chewEnd)
-        return EatPose(
-            characterScaleY: 1,
-            characterOffsetY: 0,
-            tomatoTravel: 1,
-            tomatoScale: 0.16,
-            tomatoOpacity: max(0, 1 - fade),
-            tomatoRotation: 0
         )
     }
 

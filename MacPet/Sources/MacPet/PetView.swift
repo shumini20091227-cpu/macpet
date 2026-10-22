@@ -6,10 +6,6 @@ import SwiftUI
 @MainActor
 @Observable
 final class PetDisplay {
-    var state: PetState = .rest
-    var foodCount: Int = 0
-    var eatStartedAt: Date?
-    var eatDuration: TimeInterval = 2.6
     var expressionImage: NSImage?
     var expressionFrame: Int = 0
     var tick: Date = Date()
@@ -43,21 +39,20 @@ struct PetView: View {
         .accessibilityHint(
             isEditingGlints
                 ? "拖动眼睛高光，右键完成调整"
-                : isResizing ? "拖动边角调整大小，右键完成调整" : "单击打开 ChatGPT，专注中双击查看时长，右键喂食或退出"
+                : isResizing ? "拖动边角调整大小，右键完成调整" : "单击打开 ChatGPT，右键管理表情、调整速度或退出"
         )
     }
 
     private func canvas(at date: Date) -> some View {
         let elapsed = date.timeIntervalSinceReferenceDate
         let pose = currentPose(elapsed: elapsed, now: date)
-        let tomatoPoint = PetMotion.tomatoOffset(travel: pose.tomatoTravel, size: size)
 
         return ZStack {
             ZStack {
                 character()
                     .frame(width: size, height: size)
                     .overlay {
-                        if !usesStudyArt && !PetExpressions.isActive {
+                        if !PetExpressions.isActive {
                             GazeOverlay(
                                 size: size,
                                 look: isEditingGlints ? .zero : display.look,
@@ -79,20 +74,6 @@ struct PetView: View {
             )
             .offset(x: pose.offsetX, y: pose.offsetY)
 
-            if display.state == .study, !usesStudyArt, display.expressionImage == nil {
-                StudyPageOverlay(flip: reduceMotion ? 0 : PetMotion.studyPageFlip(elapsed: elapsed), size: size)
-            }
-
-            if display.state == .eat, pose.tomatoOpacity > 0.02 {
-                TomatoView()
-                    .frame(width: size * 0.17, height: size * 0.17)
-                    .rotationEffect(.degrees(pose.tomatoRotation))
-                    .scaleEffect(pose.tomatoScale)
-                    .opacity(pose.tomatoOpacity)
-                    .offset(x: tomatoPoint.x, y: tomatoPoint.y)
-                    .accessibilityHidden(true)
-            }
-
             if let banner = display.banner {
                 Text(banner)
                     .font(.system(size: max(10, size * 0.055), weight: .medium))
@@ -108,86 +89,26 @@ struct PetView: View {
 
     private func currentPose(elapsed: TimeInterval, now: Date) -> VisualPose {
         if isEditingGlints || PetExpressions.isActive {
-            return VisualPose(
-                scaleX: 1,
-                scaleY: 1,
-                tilt: 0,
-                lookTilt: 0,
-                offsetX: 0,
-                offsetY: 0,
-                tomatoTravel: 0,
-                tomatoScale: 1,
-                tomatoOpacity: 0,
-                tomatoRotation: 0
-            )
+            return VisualPose(scaleX: 1, scaleY: 1, tilt: 0, lookTilt: 0, offsetX: 0, offsetY: 0)
         }
         let damp: CGFloat = reduceMotion ? 0.55 : 1
-
-        switch display.state {
-        case .rest:
-            let wave = PetMotion.breathScaleY(elapsed: elapsed) - 1
-            return VisualPose(
-                scaleX: 1 + (PetMotion.breathScaleX(elapsed: elapsed) - 1) * damp,
-                scaleY: 1 + wave * damp,
-                tilt: Double(1.1 * damp) * sin(elapsed * 1.15),
-                lookTilt: display.look.headTilt * Double(damp),
-                offsetX: display.look.offsetX * damp,
-                offsetY: -PetMotion.breathLift(elapsed: elapsed) * damp + display.look.offsetY * damp,
-                tomatoTravel: 0,
-                tomatoScale: 1,
-                tomatoOpacity: 0,
-                tomatoRotation: 0
-            )
-        case .study:
-            let tilt = PetMotion.studyTiltDegrees(elapsed: elapsed)
-            let base: Double = -4.5
-            let nod = (tilt - base) * Double(damp)
-            return VisualPose(
-                scaleX: 1,
-                scaleY: 1,
-                tilt: base + nod,
-                lookTilt: display.look.headTilt * Double(damp),
-                offsetX: display.look.offsetX * damp,
-                offsetY: 1.6 * damp * CGFloat(sin(2 * Double.pi * elapsed / PetMotion.studyPeriod)) + display.look.offsetY * damp,
-                tomatoTravel: 0,
-                tomatoScale: 1,
-                tomatoOpacity: 0,
-                tomatoRotation: 0
-            )
-        case .eat:
-            let eatElapsed = display.eatStartedAt.map { now.timeIntervalSince($0) } ?? 0
-            let progress = PetMotion.eatProgress(elapsed: eatElapsed, duration: display.eatDuration)
-            let eat = PetMotion.eatPose(progress: progress)
-            return VisualPose(
-                scaleX: 1,
-                scaleY: 1 + (eat.characterScaleY - 1) * damp,
-                tilt: -3,
-                lookTilt: display.look.headTilt * Double(damp),
-                offsetX: display.look.offsetX * damp,
-                offsetY: -eat.characterOffsetY * damp + display.look.offsetY * damp,
-                tomatoTravel: eat.tomatoTravel,
-                tomatoScale: eat.tomatoScale,
-                tomatoOpacity: eat.tomatoOpacity,
-                tomatoRotation: reduceMotion ? 0 : eat.tomatoRotation
-            )
-        }
+        return VisualPose(
+            scaleX: 1 + (PetMotion.breathScaleX(elapsed: elapsed) - 1) * damp,
+            scaleY: 1 + (PetMotion.breathScaleY(elapsed: elapsed) - 1) * damp,
+            tilt: Double(1.1 * damp) * sin(elapsed * 1.15),
+            lookTilt: display.look.headTilt * Double(damp),
+            offsetX: display.look.offsetX * damp,
+            offsetY: -PetMotion.breathLift(elapsed: elapsed) * damp + display.look.offsetY * damp
+        )
     }
 
     private var accessibilityValue: String {
-        switch display.state {
-        case .rest: return isEditingGlints ? "调整高光，食物 \(display.foodCount)" : isResizing ? "调整大小，食物 \(display.foodCount)" : "休息，食物 \(display.foodCount)"
-        case .study: return isEditingGlints ? "调整高光，食物 \(display.foodCount)" : isResizing ? "调整大小，食物 \(display.foodCount)" : "看书，食物 \(display.foodCount)"
-        case .eat: return isEditingGlints ? "调整高光，食物 \(display.foodCount)" : isResizing ? "调整大小，食物 \(display.foodCount)" : "吃番茄，食物 \(display.foodCount)"
-        }
-    }
-
-    private var usesStudyArt: Bool {
-        PetAsset.usesStudyArt(state: display.state, isEditingGlints: isEditingGlints)
+        isEditingGlints ? "调整高光" : isResizing ? "调整大小" : "桌面陪伴"
     }
 
     @ViewBuilder
     private func character() -> some View {
-        if let image = display.expressionImage ?? PetAsset.displayedImage(state: display.state, isEditingGlints: isEditingGlints) {
+        if let image = display.expressionImage ?? PetAsset.characterImage() {
             Image(nsImage: image)
                 .resizable()
                 .interpolation(.high)
@@ -211,10 +132,6 @@ private struct VisualPose {
     var lookTilt: Double
     var offsetX: CGFloat
     var offsetY: CGFloat
-    var tomatoTravel: CGFloat
-    var tomatoScale: CGFloat
-    var tomatoOpacity: CGFloat
-    var tomatoRotation: Double
 }
 
 private struct GazeOverlay: View {
@@ -283,44 +200,6 @@ private struct GazeOverlay: View {
     }
 }
 
-private struct StudyPageOverlay: View {
-    var flip: Double
-    var size: CGFloat
-
-    var body: some View {
-        ZStack(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(Color.white)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .stroke(Color(red: 0.15, green: 0.16, blue: 0.2), lineWidth: 1.5)
-                }
-
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(Color(red: 0.97, green: 0.97, blue: 0.94))
-                .overlay(alignment: .leading) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        ForEach(0..<3, id: \.self) { _ in
-                            Capsule()
-                                .fill(Color(red: 0.55, green: 0.58, blue: 0.62))
-                                .frame(height: 1.5)
-                        }
-                    }
-                    .padding(.horizontal, 5)
-                }
-                .rotation3DEffect(
-                    .degrees(flip * 105),
-                    axis: (x: 0, y: 1, z: 0),
-                    anchor: .leading,
-                    perspective: 0.55
-                )
-        }
-        .frame(width: size * 0.30, height: size * 0.18)
-        .offset(x: -size * 0.03, y: size * 0.22)
-        .accessibilityHidden(true)
-    }
-}
-
 private struct ResizeChrome: View {
     var petSize: CGFloat
     var windowLength: CGFloat
@@ -367,65 +246,6 @@ private struct ResizeChrome: View {
         case .bottomRight:
             return CGPoint(x: padding + petSize, y: padding + petSize)
         }
-    }
-}
-
-private struct TomatoView: View {
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(Color(red: 0.86, green: 0.22, blue: 0.20))
-                .overlay {
-                    Circle()
-                        .stroke(Color(red: 0.12, green: 0.13, blue: 0.18), lineWidth: 2.4)
-                }
-                .overlay(alignment: .topLeading) {
-                    Ellipse()
-                        .fill(Color.white.opacity(0.30))
-                        .frame(width: 8, height: 11)
-                        .offset(x: 7, y: 9)
-                }
-
-            TomatoCalyx()
-                .fill(Color(red: 0.27, green: 0.62, blue: 0.28))
-                .overlay {
-                    TomatoCalyx()
-                        .stroke(Color(red: 0.12, green: 0.13, blue: 0.18), lineWidth: 1.1)
-                }
-                .frame(width: 16, height: 10)
-                .offset(y: -13)
-
-            Capsule()
-                .fill(Color(red: 0.36, green: 0.24, blue: 0.14))
-                .frame(width: 2.4, height: 6)
-                .offset(y: -17)
-        }
-    }
-}
-
-private struct TomatoCalyx: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let midX = rect.midX
-        let midY = rect.midY
-        path.move(to: CGPoint(x: midX, y: midY))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.minX, y: rect.maxY),
-            control: CGPoint(x: rect.minX + 2, y: rect.minY)
-        )
-        path.addQuadCurve(
-            to: CGPoint(x: midX, y: midY),
-            control: CGPoint(x: midX - 2, y: rect.maxY)
-        )
-        path.addQuadCurve(
-            to: CGPoint(x: rect.maxX, y: rect.maxY),
-            control: CGPoint(x: rect.maxX - 2, y: rect.minY)
-        )
-        path.addQuadCurve(
-            to: CGPoint(x: midX, y: midY),
-            control: CGPoint(x: midX + 2, y: rect.maxY)
-        )
-        return path
     }
 }
 

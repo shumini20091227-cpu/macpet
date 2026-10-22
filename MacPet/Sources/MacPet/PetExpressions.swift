@@ -84,7 +84,7 @@ enum PetExpressions {
     }
 
     static func entries() -> [Entry] {
-        var result = [Entry(id: legacyID, name: "原版形象（自动状态）", url: nil)]
+        var result = [Entry(id: legacyID, name: "原版形象", url: nil)]
         if bundledPack == nil, !preferences.bool(forKey: "hideBundledThinking"),
            let bundled = PetAsset.bundledURLs(named: "思考中.gif").first(where: {
             FileManager.default.fileExists(atPath: $0.path)

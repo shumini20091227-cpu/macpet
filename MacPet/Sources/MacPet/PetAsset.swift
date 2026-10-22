@@ -6,8 +6,6 @@ enum PetAsset {
     private static var cachedImage: NSImage?
     private static var cachedCGImage: CGImage?
     private static var cachedPixelSize: CGSize?
-    private static var cachedStudyImage: NSImage?
-    private static var cachedStudyCGImage: CGImage?
 
     static var supportDirectory: URL = PetCharacterStore.supportDirectory()
 
@@ -15,8 +13,6 @@ enum PetAsset {
         cachedImage = nil
         cachedCGImage = nil
         cachedPixelSize = nil
-        cachedStudyImage = nil
-        cachedStudyCGImage = nil
     }
 
     static func hasCustomCharacter() -> Bool {
@@ -54,45 +50,6 @@ enum PetAsset {
             return CGSize(width: 1, height: 1)
         }
         return CGSize(width: cgImage.width, height: cgImage.height)
-    }
-
-    static func usesStudyArt(state: PetState, isEditingGlints: Bool) -> Bool {
-        !PetExpressions.isActive && state == .study && !isEditingGlints && !hasCustomCharacter() && studyImage() != nil
-    }
-
-    static func displayedImage(state: PetState, isEditingGlints: Bool) -> NSImage? {
-        if usesStudyArt(state: state, isEditingGlints: isEditingGlints) {
-            return studyImage()
-        }
-        return characterImage()
-    }
-
-    static func displayedCGImage(state: PetState, isEditingGlints: Bool) -> CGImage? {
-        if usesStudyArt(state: state, isEditingGlints: isEditingGlints) {
-            return studyCGImage() ?? characterCGImage()
-        }
-        return characterCGImage()
-    }
-
-    static func studyImage() -> NSImage? {
-        if let cachedStudyImage { return cachedStudyImage }
-        guard let url = bundledURLs(named: "pet_study.png").first(where: { FileManager.default.fileExists(atPath: $0.path) }),
-              let image = NSImage(contentsOf: url) else {
-            return nil
-        }
-        image.cacheMode = .always
-        cachedStudyImage = image
-        return image
-    }
-
-    static func studyCGImage() -> CGImage? {
-        if let cachedStudyCGImage { return cachedStudyCGImage }
-        guard let image = studyImage(),
-              let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            return nil
-        }
-        cachedStudyCGImage = cgImage
-        return cgImage
     }
 
     private static var bundledURLs: [URL] {
