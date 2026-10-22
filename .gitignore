@@ -9,3 +9,7 @@ MacPet/.DS_Store
 
 
 dist/
+
+Windows/bin/
+Windows/obj/
+Windows/test-results/

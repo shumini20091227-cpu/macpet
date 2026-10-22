@@ -1,8 +1,14 @@
 # MacPet
 
-macOS 桌面宠物，支持透明悬浮、GIF 动画表情、省电播放和表情管理。
+桌面宠物，提供 macOS 版和 Windows 原生适配版，支持透明悬浮、GIF 动画表情、省电播放和表情管理。
 
-## 下载与安装
+## Windows 版
+
+Windows 适配保持 macOS v1.2.2 的全部现有功能，共用同一套 9 个表情及鹦鹉图标，macOS 版保持不变。
+下载入口：[Windows Release](https://github.com/shumini20091227-cpu/macpet/releases/tag/windows-v1.2.2)。选择 x64（普通 Intel/AMD 电脑）或 ARM64，完整解压后双击 `MacPet.exe`，无需另装运行环境。
+隐藏后双击系统托盘中的鹦鹉图标恢复；详细说明和验证范围见 [Windows/README.md](Windows/README.md)。
+
+## macOS 下载与安装
 
 在 [GitHub Releases](https://github.com/shumini20091227-cpu/macpet/releases) 下载最新的 `MacPet-1.2.2-universal.zip`。
 

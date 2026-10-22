@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>MacPet</AssemblyName>
+    <RootNamespace>MacPet</RootNamespace>
+    <Version>1.2.2</Version>
+    <ApplicationIcon>Assets/MacPet.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>embedded</DebugType>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../MacPet/Sources/MacPet/Resources/expression-*.gif" LogicalName="MacPet.Assets.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../MacPet/Sources/MacPet/Resources/expression-pack.json" LogicalName="MacPet.Assets.expression-pack.json" />
+    <EmbeddedResource Include="../MacPet/Sources/MacPet/Resources/pet_character.png" LogicalName="MacPet.Assets.pet_character.png" />
+    <EmbeddedResource Include="Assets/MacPet.ico" LogicalName="MacPet.Assets.MacPet.ico" />
+  </ItemGroup>
+</Project>
