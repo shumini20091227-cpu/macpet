@@ -6,3 +6,6 @@ MacPet/.build/
 MacPet/.swiftpm/
 MacPet/MacPet.app/
 MacPet/.DS_Store
+
+
+dist/

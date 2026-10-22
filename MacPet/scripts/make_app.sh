@@ -4,16 +4,19 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-swift build -c release
-BIN=".build/release/MacPet"
-APP="$ROOT/MacPet.app"
+swift build -c release "$@"
+BIN_DIR="$(swift build -c release "$@" --show-bin-path)"
+BIN="$BIN_DIR/MacPet"
+APP="${MACPET_APP_OUTPUT:-$ROOT/MacPet.app}"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$ROOT/AppBundle/Info.plist" "$APP/Contents/Info.plist"
 cp "$BIN" "$APP/Contents/MacOS/MacPet"
 chmod +x "$APP/Contents/MacOS/MacPet"
-cp "$ROOT/Sources/MacPet/Resources/pet_character.png" "$APP/Contents/Resources/pet_character.png"
-cp "$ROOT/Sources/MacPet/Resources/pet_study.png" "$APP/Contents/Resources/pet_study.png"
+cp -R "$ROOT/Sources/MacPet/Resources/." "$APP/Contents/Resources/"
+cp -R "$BIN_DIR/MacPet_MacPet.bundle" "$APP/Contents/Resources/"
+codesign --force --sign "${CODE_SIGN_IDENTITY:--}" "$APP"
 
 echo "Built $APP"
+

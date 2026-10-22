@@ -1,0 +1,14 @@
+MacPet 1.2.0 安装说明
+
+1. 将 MacPet.app 拖入「应用程序」。
+2. 双击启动，右键宠物可以切换表情、调整动画速度和管理表情。
+3. 已内置 9 个 GIF 动画，无需另行导入。默认半速，可从右键“动画速度”调整。
+
+系统要求：macOS 14 或更新版本；Apple Silicon / Intel Mac。
+
+首次打开可能被 Gatekeeper 拦截：此发行版没有 Developer ID 签名和 Apple 公证。
+请核对下载来源为 https://github.com/shumini20091227-cpu/macpet/releases ，再按系统的“打开”或隐私与安全性提示允许启动。
+
+升级：先退出旧版，再替换应用。表情及设置保存在本机 Application Support，不随应用替换而删除。
+
+本软件及形象仅供个人非商业使用。原版形象根据初风y不行的 Q 版形象改编。

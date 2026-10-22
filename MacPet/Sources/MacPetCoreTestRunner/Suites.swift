@@ -643,6 +643,13 @@ enum PetMotionSuite {
 }
 
 enum PetEnergySuite {
+    static func powerModeSetsFrameBudget() async throws {
+        try expectEqual(PetEnergy.maximumFPS(energySaving: false, lowPower: false), 30)
+        try expectEqual(PetEnergy.maximumFPS(energySaving: true, lowPower: false), 12)
+        try expectEqual(PetEnergy.maximumFPS(energySaving: false, lowPower: true), 6)
+        try expectEqual(PetEnergy.maximumFPS(energySaving: true, lowPower: true), 6)
+    }
+
     static func drivesFramesOnlyWhenSomeoneCanSeeThem() async throws {
         try expect(
             PetEnergy.shouldDriveFrames(
@@ -719,5 +726,51 @@ enum PetEnergySuite {
         try expect(PetEnergy.lookHasSettled(almost, target))
         try expect(!PetEnergy.mouseMoved(CGPoint(x: 10, y: 10), CGPoint(x: 10.2, y: 10.1)))
         try expect(PetEnergy.mouseMoved(CGPoint(x: 10, y: 10), CGPoint(x: 12, y: 10)))
+    }
+}
+
+
+
+enum PetAnimationSuite {
+    static func schedulesOnlyAtFrameChangesAndCapsRefreshRate() async throws {
+        let resources = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("MacPet/Resources")
+        let animation = try PetAnimation(url: resources.appendingPathComponent("思考中.gif"))
+        try expectClose(animation.nextFrameDelay(elapsed: 0, speed: 0.25, maximumFPS: 12)!, 0.161)
+        try expectClose(animation.nextFrameDelay(elapsed: 0, speed: 1, maximumFPS: 12)!, 1.0 / 12)
+        try expectClose(animation.nextFrameDelay(elapsed: 0, speed: 1, maximumFPS: 6)!, 1.0 / 6)
+        try expectClose(animation.nextFrameDelay(elapsed: animation.duration + 0.01,
+            speed: 0.25, maximumFPS: 30)!, 0.121)
+        let still = try PetAnimation(url: resources.appendingPathComponent("pet_character.png"))
+        try expect(still.nextFrameDelay(elapsed: 0, speed: 1, maximumFPS: 12) == nil)
+    }
+
+    static func animatedGIFKeepsTimingTransparencyAndLoops() async throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("MacPet/Resources/思考中.gif")
+        let animation = try PetAnimation(url: url)
+        try expectEqual(animation.frames.count, 24)
+        try expectClose(animation.duration, 0.96)
+        try expectEqual(animation.frameIndex(elapsed: 0), 0)
+        try expectEqual(animation.frameIndex(elapsed: 0.041), 1)
+        try expectEqual(animation.frameIndex(elapsed: 0.95), 23)
+        try expectEqual(animation.frameIndex(elapsed: animation.duration + 0.041), 1)
+        let frame = animation.frames[0]
+        try expectEqual(frame.width, 500)
+        try expectEqual(frame.bitsPerPixel, 32)
+        let data = frame.dataProvider!.data!
+        let pixels = CFDataGetBytePtr(data)!
+        try expectEqual(pixels[3], 0)
+        try expectEqual(animation.frameIndex(elapsed: -1), 0)
+    }
+
+    static func invalidAnimationIsRejected() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".gif")
+        try Data("invalid gif".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        do {
+            _ = try PetAnimation(url: file)
+        } catch { return }
+        throw TestFailure(description: "Invalid animation was accepted")
     }
 }

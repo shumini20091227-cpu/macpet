@@ -23,6 +23,7 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
 
     init(runtime: PetRuntime) {
         self.runtime = runtime
+        PetExpressions.restoreSelection()
         reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         let root = PetView(
             display: display,
@@ -157,6 +158,57 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
 
     func makeContextMenu() -> NSMenu {
         let menu = NSMenu()
+        let expressionItem = menu.addItem(withTitle: "切换表情", action: nil, keyEquivalent: "")
+        let expressions = NSMenu()
+        for entry in PetExpressions.entries() {
+            let item = expressions.addItem(withTitle: entry.name, action: #selector(selectExpression(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = entry.id
+            item.state = entry.id == PetExpressions.selectedID ? .on : .off
+            item.view = ExpressionMenuRow(
+                title: entry.name,
+                selected: entry.id == PetExpressions.selectedID,
+                canRemove: entry.id != PetExpressions.legacyID,
+                onSelect: { [weak self, weak expressions] in
+                    expressions?.cancelTracking()
+                    let selection = NSMenuItem()
+                    selection.representedObject = entry.id
+                    self?.selectExpression(selection)
+                },
+                onRemove: { [weak self, weak expressions] in
+                    expressions?.cancelTracking()
+                    // Leave menu tracking before changing files and the selected pet.
+                    DispatchQueue.main.async { [weak self] in
+                        do {
+                            try PetExpressions.remove(entry)
+                            self?.applyLoadedCharacter()
+                            self?.updateMotionClock()
+                            self?.showBanner("已移除「\(entry.name)」")
+                        } catch { self?.showExpressionError(error) }
+                    }
+                }
+            )
+        }
+        expressions.addItem(.separator())
+        let importItem = expressions.addItem(withTitle: "导入表情…", action: #selector(importExpressions), keyEquivalent: "")
+        importItem.target = self
+        let batchItem = expressions.addItem(withTitle: "批量删除…", action: #selector(batchDeleteExpressions), keyEquivalent: "")
+        batchItem.target = self
+        batchItem.isEnabled = PetExpressions.entries().contains { $0.id != PetExpressions.legacyID }
+        expressionItem.submenu = expressions
+        let speedItem = menu.addItem(withTitle: "动画速度", action: nil, keyEquivalent: "")
+        let speeds = NSMenu()
+        for (title, speed) in PetExpressions.playbackSpeeds {
+            let item = speeds.addItem(withTitle: title, action: #selector(changeAnimationSpeed(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = NSNumber(value: speed)
+            item.state = speed == PetExpressions.playbackSpeed ? .on : .off
+        }
+        speedItem.submenu = speeds
+        let energyItem = menu.addItem(withTitle: "省电模式（推荐）", action: #selector(toggleEnergySaving), keyEquivalent: "")
+        energyItem.target = self
+        energyItem.state = PetExpressions.energySaving ? .on : .off
+        menu.addItem(.separator())
         let feedTitle = "喂番茄（\(runtime.foodCount)）"
         let feedItem = menu.addItem(withTitle: feedTitle, action: #selector(feedPet), keyEquivalent: "")
         feedItem.target = self
@@ -181,6 +233,7 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
             keyEquivalent: ""
         )
         glintItem.target = self
+        glintItem.isEnabled = !PetExpressions.isActive
         if isEditingGlints {
             let resetItem = menu.addItem(withTitle: "恢复默认高光", action: #selector(resetGlints), keyEquivalent: "")
             resetItem.target = self
@@ -205,6 +258,90 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
 
     func gestureThreshold() -> CGFloat {
         runtime.settings.clickDragThreshold
+    }
+
+    @objc private func selectExpression(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String,
+              let entry = PetExpressions.entries().first(where: { $0.id == id }) else { return }
+        do {
+            try PetExpressions.select(entry)
+            applyLoadedCharacter()
+            updateMotionClock()
+        } catch { showExpressionError(error) }
+    }
+
+    @objc private func toggleEnergySaving() {
+        PetExpressions.energySaving.toggle()
+        updateMotionClock()
+        showBanner(PetExpressions.energySaving ? "已开启省电模式" : "已关闭省电模式")
+    }
+
+    @objc private func changeAnimationSpeed(_ sender: NSMenuItem) {
+        guard let speed = sender.representedObject as? NSNumber else { return }
+        PetExpressions.setPlaybackSpeed(speed.doubleValue)
+        refreshPresentation()
+        showBanner("动画速度 \(speed.doubleValue)×")
+    }
+
+    @objc private func batchDeleteExpressions() {
+        let entries = PetExpressions.entries().filter { $0.id != PetExpressions.legacyID }
+        guard !entries.isEmpty else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        let picker = ExpressionDeletionPicker(entries: entries)
+        let alert = NSAlert()
+        alert.messageText = "批量删除表情"
+        alert.informativeText = "勾选要删除的表情。导入的副本移入废纸篓，原始文件不受影响。"
+        alert.accessoryView = picker
+        let delete = alert.addButton(withTitle: "删除所选")
+        delete.isEnabled = false
+        delete.keyEquivalent = ""
+        picker.deleteButton = delete
+        alert.addButton(withTitle: "取消").keyEquivalent = "\u{1b}"
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let selected = picker.selectedEntries
+        let failures = PetExpressions.remove(selected)
+        applyLoadedCharacter()
+        updateMotionClock()
+        showBanner("已删除 \(selected.count - failures.count) 个表情")
+        if !failures.isEmpty {
+            let failure = NSAlert()
+            failure.messageText = "部分表情未能删除"
+            failure.informativeText = failures.joined(separator: "、")
+            failure.runModal()
+        }
+    }
+
+    @objc private func importExpressions() {
+        NSApp.activate(ignoringOtherApps: true)
+        let panel = NSOpenPanel()
+        panel.title = "导入表情"
+        panel.message = "选择 GIF 动画或 PNG，文件名会作为表情名称，可一次选择多个"
+        panel.allowedContentTypes = [.gif, .png]
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK else { return }
+        var failures: [String] = []
+        for url in panel.urls {
+            do {
+                let entry = try PetExpressions.importExpression(from: url)
+                try PetExpressions.select(entry)
+            } catch { failures.append(url.lastPathComponent) }
+        }
+        applyLoadedCharacter()
+        updateMotionClock()
+        if !failures.isEmpty {
+            let alert = NSAlert()
+            alert.messageText = "部分表情未能导入"
+            alert.informativeText = failures.joined(separator: "、") + "\n请使用有效的 GIF 或 PNG；解码后的总大小须小于 256 MB。"
+            alert.runModal()
+        }
+    }
+
+    private func showExpressionError(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "无法加载表情"
+        alert.informativeText = error.localizedDescription
+        alert.runModal()
     }
 
     @objc private func feedPet() {
@@ -249,13 +386,13 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         }
         updateMotionClock()
         if motionTimer == nil {
-            motionTick()
+            refreshPresentation()
         }
     }
 
     @objc private func resetGlints() {
         runtime.resetGlints()
-        motionTick()
+        refreshPresentation()
     }
 
     @objc private func replaceCharacter() {
@@ -275,10 +412,12 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         } catch {
             return
         }
+        try? PetExpressions.select(PetExpressions.entries()[0])
         applyLoadedCharacter()
     }
 
     @objc private func restoreDefaultCharacter() {
+        try? PetExpressions.select(PetExpressions.entries()[0])
         try? PetCharacterStore.removeCustom(in: PetAsset.supportDirectory)
         applyLoadedCharacter()
     }
@@ -290,7 +429,7 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         if let content = window?.contentView {
             window?.invalidateCursorRects(for: content)
         }
-        motionTick()
+        refreshPresentation()
     }
 
     func applyGlint(_ slot: GlintSlot, toAppKitPoint point: CGPoint) {
@@ -304,7 +443,7 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         case .left: runtime.leftGlint = unit
         case .right: runtime.rightGlint = unit
         }
-        motionTick()
+        refreshPresentation()
     }
 
     func glintSlot(atAppKit point: CGPoint) -> GlintSlot? {
@@ -383,7 +522,7 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         if let content = window.contentView {
             window.invalidateCursorRects(for: content)
         }
-        motionTick()
+        refreshPresentation()
     }
 
     private func restorePosition(for panel: NSPanel) {
@@ -428,7 +567,10 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
             let next = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             guard next != $0.reduceMotion else { return }
             $0.reduceMotion = next
-            $0.motionTick()
+            $0.refreshPresentation()
+        }
+        observeEnergy(NotificationCenter.default, .NSProcessInfoPowerStateDidChange) {
+            $0.updateMotionClock()
         }
         observeEnergy(NotificationCenter.default, NSWindow.didChangeOcclusionStateNotification, object: window) {
             $0.isWindowOccluded = $0.window?.occlusionState.contains(.visible) != true
@@ -460,33 +602,38 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         )
     }
 
-    private func updateMotionClock() {
-        if PetEnergy.shouldDriveFrames(
+    private var canDriveFrames: Bool {
+        PetEnergy.shouldDriveFrames(
             isWindowOnscreen: window?.isVisible == true,
             isWindowOccluded: isWindowOccluded,
             isDisplayAsleep: isDisplayAsleep,
             isScreenLocked: isScreenLocked,
             isPoseFrozen: isEditingGlints
-        ) {
-            startMotionClock()
-        } else {
-            stopMotionClock()
-        }
+        )
     }
 
-    private func startMotionClock() {
-        guard motionTimer == nil else { return }
-        let timer = Timer(
-            timeInterval: PetEnergy.motionFrameInterval,
-            target: self,
-            selector: #selector(motionTick),
-            userInfo: nil,
-            repeats: true
-        )
-        timer.tolerance = PetEnergy.motionTimerTolerance
+    private func updateMotionClock() {
+        stopMotionClock()
+        guard canDriveFrames else { return }
+        motionTick()
+    }
+
+    private func scheduleNextFrame(at date: Date) {
+        guard canDriveFrames else { return }
+        let fps = PetEnergy.maximumFPS(energySaving: PetExpressions.energySaving,
+            lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled)
+        let delay: TimeInterval
+        if PetExpressions.isActive {
+            guard let next = PetExpressions.nextFrameDelay(at: date, maximumFPS: fps) else { return }
+            delay = next
+        } else {
+            delay = 1 / fps
+        }
+        let timer = Timer(timeInterval: delay, target: self,
+            selector: #selector(motionTick), userInfo: nil, repeats: false)
+        timer.tolerance = min(delay * 0.15, 0.03)
         RunLoop.main.add(timer, forMode: .common)
         motionTimer = timer
-        motionTick()
     }
 
     private func stopMotionClock() {
@@ -509,9 +656,7 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         persistCurrentOrigin()
     }
 
-    @objc private func motionTick() {
-        updateLook()
-        display.tick = Date()
+    private func refreshPresentation() {
         hostingView.rootView = PetView(
             display: display,
             size: runtime.petSize,
@@ -521,10 +666,26 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
             leftGlint: runtime.leftGlint,
             rightGlint: runtime.rightGlint
         )
+        motionTick()
+    }
+
+    @objc private func motionTick() {
+        stopMotionClock()
+        let date = Date()
+        PetExpressions.advance(at: date)
+        if display.expressionImage !== PetExpressions.image {
+            display.expressionImage = PetExpressions.image
+            display.expressionFrame = PetExpressions.frameIndex
+        }
+        if !PetExpressions.isActive {
+            updateLook()
+            display.tick = date
+        }
+        scheduleNextFrame(at: date)
     }
 
     private func updateLook() {
-        if isEditingGlints {
+        if isEditingGlints || PetExpressions.isActive {
             display.look = .zero
             lastMouseLocation = nil
             lastLookTarget = .zero
@@ -740,3 +901,4 @@ final class ClearHostingView<Content: View>: NSHostingView<Content> {
         nil
     }
 }
+

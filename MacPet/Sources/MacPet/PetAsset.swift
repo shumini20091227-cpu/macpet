@@ -24,6 +24,7 @@ enum PetAsset {
     }
 
     static func characterImage() -> NSImage? {
+        if PetExpressions.isActive { return PetExpressions.image }
         if let cachedImage { return cachedImage }
         guard let url = PetCharacterStore.resolvedImageURL(directory: supportDirectory, bundled: bundledURLs),
               let image = NSImage(contentsOf: url) else {
@@ -35,6 +36,7 @@ enum PetAsset {
     }
 
     static func characterCGImage() -> CGImage? {
+        if PetExpressions.isActive { return PetExpressions.cgImage }
         if let cachedCGImage { return cachedCGImage }
         guard let image = characterImage(),
               let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
@@ -46,6 +48,7 @@ enum PetAsset {
     }
 
     static func characterPixelSize() -> CGSize {
+        if let image = PetExpressions.cgImage { return CGSize(width: image.width, height: image.height) }
         if let cachedPixelSize { return cachedPixelSize }
         guard let cgImage = characterCGImage() else {
             return CGSize(width: 1, height: 1)
@@ -54,7 +57,7 @@ enum PetAsset {
     }
 
     static func usesStudyArt(state: PetState, isEditingGlints: Bool) -> Bool {
-        state == .study && !isEditingGlints && !hasCustomCharacter() && studyImage() != nil
+        !PetExpressions.isActive && state == .study && !isEditingGlints && !hasCustomCharacter() && studyImage() != nil
     }
 
     static func displayedImage(state: PetState, isEditingGlints: Bool) -> NSImage? {
@@ -96,8 +99,11 @@ enum PetAsset {
         bundledURLs(named: "pet_character.png")
     }
 
-    private static func bundledURLs(named fileName: String) -> [URL] {
+    static func bundledURLs(named fileName: String) -> [URL] {
         var urls: [URL] = []
+        if let resource = Bundle.module.resourceURL {
+            urls.append(resource.appendingPathComponent(fileName))
+        }
         let fileManager = FileManager.default
         if let resource = Bundle.main.resourceURL {
             urls.append(resource.appendingPathComponent(fileName))
@@ -113,3 +119,4 @@ enum PetAsset {
         return urls
     }
 }
+

@@ -1,0 +1,50 @@
+{
+  "defaultExpressionID": "2D9DEA2D-C273-4448-A5BA-384ADC592BE4",
+  "expressions": [
+    {
+      "id": "24299BD9-5112-43C2-BB6F-D5E54F48CDE3",
+      "name": "10W_PNGTuber 加载中_2026-10-13-08-59-36",
+      "file": "expression-24299BD9-5112-43C2-BB6F-D5E54F48CDE3.gif"
+    },
+    {
+      "id": "24D8F3E2-1BD2-4477-BDCB-6B7D7C00FC9D",
+      "name": "10W_记录 1_2026-10-13-08-58-56",
+      "file": "expression-24D8F3E2-1BD2-4477-BDCB-6B7D7C00FC9D.gif"
+    },
+    {
+      "id": "2D9DEA2D-C273-4448-A5BA-384ADC592BE4",
+      "name": "10W_PNGTuber 闲置_2026-10-13-08-59-29",
+      "file": "expression-2D9DEA2D-C273-4448-A5BA-384ADC592BE4.gif"
+    },
+    {
+      "id": "5080186B-B168-4C35-BCD0-F08DBBAC3FCB",
+      "name": "10W_驾驶_2026-10-13-08-53-38",
+      "file": "expression-5080186B-B168-4C35-BCD0-F08DBBAC3FCB.gif"
+    },
+    {
+      "id": "8D6CFB4D-DB39-4B5F-87BF-5642FA4251BC",
+      "name": "10W_TrashTuber 闲置_2026-10-13-09-04-06",
+      "file": "expression-8D6CFB4D-DB39-4B5F-87BF-5642FA4251BC.gif"
+    },
+    {
+      "id": "A9535556-3722-41EF-AFF5-769966638BE6",
+      "name": "10W_PNGTuber 说话_2026-10-13-08-59-39",
+      "file": "expression-A9535556-3722-41EF-AFF5-769966638BE6.gif"
+    },
+    {
+      "id": "B32ADA11-B22F-4EC0-9783-41676B598470",
+      "name": "10W_礼物 2_2026-10-13-08-55-29",
+      "file": "expression-B32ADA11-B22F-4EC0-9783-41676B598470.gif"
+    },
+    {
+      "id": "C75E68ED-ADA4-4767-B543-5F655DC3955A",
+      "name": "10W_加载(睡觉)_2026-10-13-08-57-19",
+      "file": "expression-C75E68ED-ADA4-4767-B543-5F655DC3955A.gif"
+    },
+    {
+      "id": "E17660DD-0054-4055-A207-FA7EBD47A94D",
+      "name": "10W_主意_2026-10-13-08-56-11",
+      "file": "expression-E17660DD-0054-4055-A207-FA7EBD47A94D.gif"
+    }
+  ]
+}

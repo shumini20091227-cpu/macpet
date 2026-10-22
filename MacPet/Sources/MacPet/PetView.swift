@@ -10,6 +10,8 @@ final class PetDisplay {
     var foodCount: Int = 0
     var eatStartedAt: Date?
     var eatDuration: TimeInterval = 2.6
+    var expressionImage: NSImage?
+    var expressionFrame: Int = 0
     var tick: Date = Date()
     var look: LookPose = .zero
     var banner: String?
@@ -55,7 +57,7 @@ struct PetView: View {
                 character()
                     .frame(width: size, height: size)
                     .overlay {
-                        if !usesStudyArt {
+                        if !usesStudyArt && !PetExpressions.isActive {
                             GazeOverlay(
                                 size: size,
                                 look: isEditingGlints ? .zero : display.look,
@@ -77,7 +79,7 @@ struct PetView: View {
             )
             .offset(x: pose.offsetX, y: pose.offsetY)
 
-            if display.state == .study, !usesStudyArt {
+            if display.state == .study, !usesStudyArt, display.expressionImage == nil {
                 StudyPageOverlay(flip: reduceMotion ? 0 : PetMotion.studyPageFlip(elapsed: elapsed), size: size)
             }
 
@@ -105,7 +107,7 @@ struct PetView: View {
     }
 
     private func currentPose(elapsed: TimeInterval, now: Date) -> VisualPose {
-        if isEditingGlints {
+        if isEditingGlints || PetExpressions.isActive {
             return VisualPose(
                 scaleX: 1,
                 scaleY: 1,
@@ -185,7 +187,7 @@ struct PetView: View {
 
     @ViewBuilder
     private func character() -> some View {
-        if let image = PetAsset.displayedImage(state: display.state, isEditingGlints: isEditingGlints) {
+        if let image = display.expressionImage ?? PetAsset.displayedImage(state: display.state, isEditingGlints: isEditingGlints) {
             Image(nsImage: image)
                 .resizable()
                 .interpolation(.high)
@@ -426,3 +428,4 @@ private struct TomatoCalyx: Shape {
         return path
     }
 }
+

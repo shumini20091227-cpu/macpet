@@ -26,6 +26,10 @@ func expectClose(_ actual: Double, _ expected: Double, tolerance: Double = 0.001
 enum MacPetCoreTestRunner {
     static func main() async {
         let tests: [(String, () async throws -> Void)] = [
+            ("schedulesOnlyAtFrameChangesAndCapsRefreshRate", PetAnimationSuite.schedulesOnlyAtFrameChangesAndCapsRefreshRate),
+            ("powerModeSetsFrameBudget", PetEnergySuite.powerModeSetsFrameBudget),
+            ("animatedGIFKeepsTimingTransparencyAndLoops", PetAnimationSuite.animatedGIFKeepsTimingTransparencyAndLoops),
+            ("invalidAnimationIsRejected", PetAnimationSuite.invalidAnimationIsRejected),
             ("twentyFiveMinutesGrantsOneFood", FoodEngineSuite.twentyFiveMinutesGrantsOneFood),
             ("fortyNineMinutesGrantsOneFood", FoodEngineSuite.fortyNineMinutesGrantsOneFood),
             ("fiftyMinutesGrantsTwoFoods", FoodEngineSuite.fiftyMinutesGrantsTwoFoods),
@@ -93,3 +97,4 @@ enum MacPetCoreTestRunner {
         }
     }
 }
+

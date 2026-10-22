@@ -4,6 +4,10 @@ import Foundation
 public enum PetEnergy {
     public static let motionFrameInterval: TimeInterval = 1.0 / 30.0
     public static let motionTimerTolerance: TimeInterval = 1.0 / 60.0
+    public static func maximumFPS(energySaving: Bool, lowPower: Bool) -> Double {
+        lowPower ? 6 : energySaving ? 12 : 30
+    }
+
     public static let lookSettledEpsilon: CGFloat = 0.0005
     public static let mouseStillThreshold: CGFloat = 0.5
 
@@ -37,3 +41,4 @@ public enum PetEnergy {
         hypot(previous.x - current.x, previous.y - current.y) >= threshold
     }
 }
+
