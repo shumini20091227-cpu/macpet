@@ -7,9 +7,11 @@
 - **经典陪伴版 1.2.2**：侧重安静的桌面陪伴，支持 macOS / Windows，保留原有下载。
 - **互动番外版 2.0 Beta（目前仅 Mac）**：侧重打字互动。在右键「键盘互动」里自选任意表情；打字时临时切换，停键 **0.5 秒**后恢复原表情。这是并行的衍生版本，不替代经典版。
 
-[下载 Mac 互动版](https://github.com/shumini20091227-cpu/macpet/releases/tag/interactive-v2.0.0-beta.1) · [互动版说明](Interactive/README-互动版.md)
+[下载 Mac 互动版](https://github.com/shumini20091227-cpu/macpet/releases/tag/interactive-v2.0.0-beta.2) · [互动版说明](Interactive/README-互动版.md)
 
 互动版使用独立应用身份和数据目录，可与经典版并存；内置相同 9 个 GIF，额外导入的表情需另行导入。首次启用键盘联动需允许 macOS「输入监控」权限；只检测按键活动，不记录输入内容。系统安全输入状态可能暂停联动。
+
+互动版 Beta 2 修复授权后监听不自动恢复的问题，并新增监听状态提示。升级后若仍不联动，请在输入监控中移除旧条目、重新添加当前应用并重启；临时签名的新版可能无法继承旧权限。
 
 ## Windows 版
 

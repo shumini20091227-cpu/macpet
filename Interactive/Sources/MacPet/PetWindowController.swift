@@ -151,6 +151,8 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         let typingMenu = NSMenu()
         let typingItem = menu.addItem(withTitle: "键盘互动", action: nil, keyEquivalent: "")
         typingItem.submenu = typingMenu
+        let status = typingMenu.addItem(withTitle: keyboardMonitor?.isListening == true ? "状态：正在监听按键活动" : (UserDefaults.standard.bool(forKey: "keyboardInteractionEnabled") ? "状态：等待输入监控权限，授权后自动重连" : "状态：已关闭"), action: nil, keyEquivalent: "")
+        status.isEnabled = false
         let enabled = typingMenu.addItem(withTitle: "启用打字联动", action: #selector(toggleTyping), keyEquivalent: "")
         enabled.target = self
         enabled.state = UserDefaults.standard.bool(forKey: "keyboardInteractionEnabled") ? .on : .off
@@ -261,10 +263,11 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
             if defaults.string(forKey: "typingExpressionID") == nil {
                 defaults.set(PetExpressions.selectedID, forKey: "typingExpressionID")
             }
+            defaults.set(true, forKey: "keyboardInteractionEnabled")
             if keyboardMonitor?.start(prompt: true) != true {
                 let alert = NSAlert()
                 alert.messageText = "请允许输入监控"
-                alert.informativeText = "在系统设置 → 隐私与安全性 → 输入监控中允许 MacPet 互动版，然后重新启用联动。仅检测按键活动，不读取、保存或发送输入内容。"
+                alert.informativeText = "在系统设置 → 隐私与安全性 → 输入监控中允许 MacPet 互动版，授权后会自动重连；如果系统要求，请退出后重新打开互动版。仅检测按键活动，不读取、保存或发送输入内容。"
                 alert.runModal()
                 return
             }
